@@ -1,0 +1,67 @@
+{
+  "name": "@kinetune/n8n-nodes-kinetune",
+  "version": "5.6.0",
+  "description": "n8n community node for Kinetune: lyric videos, Spotify Canvas loops and AI music videos from your songs",
+  "license": "MIT",
+  "author": {
+    "name": "Kinetune",
+    "email": "support@kinetune.com",
+    "url": "https://kinetune.com"
+  },
+  "homepage": "https://kinetune.com/developers#n8n",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kinetune/n8n-nodes-kinetune.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kinetune/n8n-nodes-kinetune/issues"
+  },
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "lyric-video",
+    "video",
+    "music",
+    "kinetune",
+    "lyric video",
+    "spotify canvas",
+    "music video"
+  ],
+  "main": "dist/nodes/Kinetune/Kinetune.node.js",
+  "types": "dist/nodes/Kinetune/Kinetune.node.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "n8n-node build",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "release": "n8n-node release",
+    "prepublishOnly": "n8n-node prerelease"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/KinetuneApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Kinetune/Kinetune.node.js"
+    ],
+    "strict": true
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "0.58.5",
+    "eslint": "9.39.4",
+    "n8n-workflow": "^1.82.0",
+    "prettier": "3.8.3",
+    "release-it": "20.2.0",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
