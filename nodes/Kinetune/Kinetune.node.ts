@@ -57,13 +57,6 @@ const locator=(displayName:string,name:string,searchListMethod:string,what:strin
   ],
 } as INodeProperties);
 
-export const CATEGORIES=[
-  ["Release","release"],["Fall","fall"],["Halloween","halloween"],["Christmas","christmas"],["Summer","summer"],["Valentine's","valentines"],
-  ["Mood","mood"],["Retro","retro"],["Synthwave","synthwave"],["Street","street"],["Nature","nature"],["Luxury","luxury"],
-  ["Abstract","abstract"],["Minimal","minimal"],["Neon","neon"],["Pop art","pop-art"],["Lo-fi","lo-fi"],["Grunge","grunge"],
-  ["Cosmic","cosmic"],["Cyber","cyber"],["Dreamy","dreamy"],
-].map(([name,value])=>({name,value}));
-
 // How a lyric video presents and animates the lyrics (the API's look.lyric_style; GET /options lists them).
 export const LYRIC_STYLES=[
   ["Showcase","showcase","The release is the hero: cover, title and artist, with a karaoke line under them"],
@@ -169,9 +162,11 @@ function effectsOf(ctx:IExecuteFunctions,name:string,index:number){
 }
 
 // A resource locator's id (From List or By ID), or a plain string parameter; empty when unset.
+/** The song models, as get_options song.models names them (the API refuses one not offered to the caller). */
+export const SONG_MODEL_OPTIONS=[{name:"Mureka V9.5",value:"mureka-v9-5"},{name:"Lyria 3.5",value:"lyria-3-5"},{name:"Eleven Music v2.5",value:"eleven-music-v2-5"},{name:"MiniMax Music 3",value:"minimax-music-3"}];
 const locatorValue=(ctx:IExecuteFunctions,name:string,index:number)=>String(ctx.getNodeParameter(name,index,"",{extractValue:true})??"").trim();
 
-// Sizes are entered as percentages of the Look's design and sent as multipliers (100% = omitted).
+// Sizes are entered as percentages of the lyric style's design and sent as multipliers (100% = omitted).
 const scaleField=(key:string,percent:number)=>percent&&percent!==100?{[key]:Math.round(percent)/100}:{};
 
 // Same request as the app's Canvas mode: a picture (clips, the cover, a visualizer, or generated with AI), how it loops, how
@@ -254,12 +249,12 @@ function musicVideoRequest(ctx:IExecuteFunctions,index:number){
   const refinishId=String(ctx.getNodeParameter("musicRefinishId",index,"")||"").trim();
   const test=Boolean(planId&&!refinishId&&ctx.getNodeParameter("musicTest",index,false));
   const outro=test?[]:ctx.getNodeParameter("musicOutro",index,[]) as string[];
-  const outroLook=(ctx.getNodeParameter("musicOutroLookId",index,"") as string).trim();
+  const outroKind=String(ctx.getNodeParameter("musicOutroKind",index,"director")||"director");
   return {type:"music-video",variations:Number(ctx.getNodeParameter("musicVariations",index,1)||1),song_id:locatorValue(ctx,"songId",index),
     ...(()=>{const quality=String(ctx.getNodeParameter("musicQuality",index,"")||"");return quality?{quality}:{};})(),
     ...(refinishId?{refinish:{video_id:refinishId}}:planId?{plan_id:planId,...(test?{test:true}:{})}:{...musicVideoBrief(ctx,index),
       ...(()=>{const casting=String(ctx.getNodeParameter("musicCastingId",index,"")||"").trim();return casting?{casting_id:casting}:{};})()}),
-    ...(outro.length?{outro:{display:{title:outro.includes("title"),artist:outro.includes("artist"),cover:outro.includes("cover"),badges:outro.includes("badges")},...(outroLook?{look_id:outroLook}:{})}}:{})};
+    ...(outro.length?{outro:{display:{title:outro.includes("title"),artist:outro.includes("artist"),cover:outro.includes("cover"),badges:outro.includes("badges")},...(outroKind!=="director"?{kind:outroKind}:{})}}:{})};
 }
 // A plan for the brief, or a rewrite of an earlier plan of the song with a note (Revise).
 function musicVideoPlanRequest(ctx:IExecuteFunctions,index:number){
@@ -288,8 +283,8 @@ function kitPieceFields(ctx:IExecuteFunctions,index:number){
 }
 
 const commaList=(value:unknown)=>String(value||"").split(",").map(v=>v.trim()).filter(Boolean);
-// The Look's parts changed (a lyric video's look, Save as Look): lyric style, visual and picture; each left out keeps the Look's own.
-function lookChanges(ctx:IExecuteFunctions,index:number){
+// A lyric video's look: lyric style, words behind, visual and picture; each left out is the song's draft's.
+function lyricLook(ctx:IExecuteFunctions,index:number){
   const lyricStyle=String(ctx.getNodeParameter("lyricStyle",index,"")||"");
   const behind=String(ctx.getNodeParameter("behind",index,"")||"");
   const visual=String(ctx.getNodeParameter("visual",index,"")||"").trim();
@@ -297,9 +292,9 @@ function lookChanges(ctx:IExecuteFunctions,index:number){
   let background:Json|undefined;
   if(picture==="visualizer")background={kind:"visualizer"};
   else if(picture==="clips"){
-    const moods=commaList(ctx.getNodeParameter("clipMoods",index,"")),folders=commaList(ctx.getNodeParameter("clipFolders",index,"")),looks=commaList(ctx.getNodeParameter("clipLooks",index,""));
-    if(!moods.length&&!folders.length&&!looks.length)throw new NodeOperationError(ctx.getNode(),"Clips need at least one mood, folder or Look",{itemIndex:index});
-    background={kind:"clips",sources:{...(moods.length?{moods}:{}),...(folders.length?{folders}:{}),...(looks.length?{looks}:{})},
+    const moods=commaList(ctx.getNodeParameter("clipMoods",index,"")),folders=commaList(ctx.getNodeParameter("clipFolders",index,""));
+    if(!moods.length&&!folders.length)throw new NodeOperationError(ctx.getNode(),"Clips need at least one mood or folder",{itemIndex:index});
+    background={kind:"clips",sources:{...(moods.length?{moods}:{}),...(folders.length?{folders}:{})},
       density:String(ctx.getNodeParameter("cutDensity",index,"even")),
       transitions:{style:String(ctx.getNodeParameter("transitionStyle",index,"auto")),amount:Number(ctx.getNodeParameter("transitionAmount",index,0.5)),feel:Number(ctx.getNodeParameter("transitionFeel",index,0.5))},
       grade:String(ctx.getNodeParameter("clipGrade",index,"clean")),grade_amount:Number(ctx.getNodeParameter("clipGradeAmount",index,1)),
@@ -309,16 +304,15 @@ function lookChanges(ctx:IExecuteFunctions,index:number){
   return {...(lyricStyle?{lyric_style:lyricStyle}:{}),...(behind?{behind:behind==="on"}:{}),...(visual?{visual:{preset:visual}}:{}),...(background?{background}:{})};
 }
 
-// Same request as the app: song, Look (a saved one or Kinetune's pick, with any part changed), formats, display switches and trim.
+// Same request as the app: song, its look (the song's draft, with any part changed), formats, display switches and trim.
 function generationRequest(ctx:IExecuteFunctions,index:number){
   const videoType=String(ctx.getNodeParameter("videoType",index,"lyric-video"));
   if(videoType==="canvas")return canvasRequest(ctx,index);
   if(videoType==="music-video")return musicVideoRequest(ctx,index);
-  const lookId=String(ctx.getNodeParameter("lookId",index,"")||"").trim();
-  const look={...(lookId?{id:lookId}:{}),...lookChanges(ctx,index)};
+  const look=lyricLook(ctx,index);
   const clipsPicture=String(ctx.getNodeParameter("picture",index,"")||"")==="clips";
   const trimStart=Number(ctx.getNodeParameter("trimStart",index,0)||0),trimEnd=Number(ctx.getNodeParameter("trimEnd",index,0)||0);
-  const headline=String(ctx.getNodeParameter("headline",index,"look"));
+  const headline=String(ctx.getNodeParameter("headline",index,"default"));
   const titleCard=String(ctx.getNodeParameter("titleCard",index,"auto"));
   const ratios=ctx.getNodeParameter("aspectRatios",index,["9:16"]) as string[];
   // Clips: which clips land where (0: the first); each further variation draws other clips.
@@ -331,7 +325,7 @@ function generationRequest(ctx:IExecuteFunctions,index:number){
     display:{
       title:Boolean(ctx.getNodeParameter("showTitle",index,true)),artist:Boolean(ctx.getNodeParameter("showArtist",index,true)),
       cover:Boolean(ctx.getNodeParameter("showCover",index,true)),lyrics:Boolean(ctx.getNodeParameter("showLyrics",index,true)),
-      badges:Boolean(ctx.getNodeParameter("showBadges",index,true)),...(headline!=="look"?{headline}:{}),...(titleCard!=="auto"?{title_card:titleCard}:{}),
+      badges:Boolean(ctx.getNodeParameter("showBadges",index,true)),...(headline!=="default"?{headline}:{}),...(titleCard!=="auto"?{title_card:titleCard}:{}),
       ...scaleField("cover_scale",Number(ctx.getNodeParameter("coverSize",index,100))),...scaleField("text_scale",Number(ctx.getNodeParameter("textSize",index,100))),
       ...scaleField("artist_scale",Number(ctx.getNodeParameter("artistSize",index,100))),
       ...scaleField("spacing_scale",Number(ctx.getNodeParameter("spacing",index,100))),
@@ -360,7 +354,6 @@ export const OPERATION_IDS:Record<string,string[]>={
   quote:["quotes.lyric_video","quotes.canvas","quotes.music_video"],create:["videos.create_lyric_video","videos.create_canvas","videos.create_music_video"],get:["videos.get"],listVideos:["videos.list"],
   planMusicVideo:["music_video_plans.create"],getMusicVideoPlan:["music_video_plans.get"],getMusicVideoPlanWrite:["music_video_plans.write"],listMusicVideoFrames:["music_video_plans.frames"],drawMusicVideoFrame:["music_video_plans.draw_frame"],getMusicVideoStoryboard:["music_video_plans.storyboard"],deleteMusicVideoPlan:["music_video_plans.delete"],listMusicVideoDrafts:["music_video_plans.list"],saveMusicVideoLook:["videos.save_look"],listMusicVideoLooks:["music_video_looks.list"],getMusicVideoLook:["music_video_looks.get"],deleteMusicVideoLook:["music_video_looks.archive"],reviseMusicVideoShot:["videos.revise_shot"],priceMusicVideoRevision:["videos.revision_prices"],swapMusicVideoPlace:["music_video_plans.swap_place"],checkMusicVideoModel:["music_video_plans.check_model"],switchMusicVideoModel:["music_video_plans.switch_model"],listMusicVideoPictures:["music_video_plans.pictures"],listMusicVideoVersions:["music_video_plans.versions"],deleteMusicVideoVersion:["music_video_plans.delete_version"],drawMusicVideoPictures:["music_video_plans.draw_pictures"],dropMusicVideoAngle:["music_video_plans.drop_angle"],
   cancel:["videos.cancel"],retry:["videos.retry"],deleteVideo:["videos.delete"],listVideoDrafts:["video_drafts.list"],deleteVideoDrafts:["video_drafts.delete"],shareVideo:["videos.share"],unshareVideo:["videos.unshare"],getAccount:["account.get"],createUpload:["uploads.create"],options:["options.get"],listOrganizations:["organizations.list"],createOrganization:["organizations.create"],updateOrganization:["organizations.update"],
-  listLooks:["looks.list"],getLook:["looks.get"],getLookClips:["looks.clips"],renameLook:["looks.rename"],deleteLook:["looks.delete"],setVisibility:["looks.visibility"],saveLook:["looks.save"],
   getSongDraft:["songs.draft"],getVideoDraft:["songs.video_draft.get"],editVideoDraft:["songs.video_draft.edit"],listClips:["clips.list"],browseClipMood:["clip_moods.browse"],similarClips:["clips.similar"],clipRebound:["clips.rebound"],clipSteady:["clips.steady"],clipBestSpot:["clips.loop"],generateClips:["clips.generate"],retryClipImport:["clip_imports.retry"],dismissClipImport:["clip_imports.dismiss"],deleteClip:["clips.delete"],moveClips:["clips.move"],analyzeClips:["clips.analyze"],listClipFolders:["clip_folders.list"],createClipFolder:["clip_folders.create"],getClipFolder:["clip_folders.get"],
   renameClipFolder:["clip_folders.rename"],deleteClipFolder:["clip_folders.delete"],importClips:["clip_folders.import"],searchStock:["stock.search"],
   listCanvasPresets:["canvas_presets.list"],saveCanvasPreset:["canvas_presets.save"],renameCanvasPreset:["canvas_presets.rename"],deleteCanvasPreset:["canvas_presets.delete"],
@@ -378,23 +371,25 @@ export const OPERATION_IDS:Record<string,string[]>={
   downloadSongCover:["songs.get"],downloadSongAudio:["songs.get"],
   songAnalysis:["songs.analysis"],reanalyzeSong:["songs.reanalyze"],setSongLyrics:["songs.set_lyrics"],clearSongLyrics:["songs.clear_lyrics"],setSongWords:["songs.set_words"],transcribeSong:["songs.transcription_price","songs.transcribe"],
   editSongBrief:["songs.edit_brief"],rewriteSongBrief:["songs.remake_brief"],
+  writeSongLyrics:["song_creations.write_lyrics"],quoteNewSong:["song_creations.quote"],makeSong:["song_creations.create"],getSongCreation:["song_creations.get"],
+  listSongCreations:["song_creations.list"],getSongCreationDraft:["song_drafts.get"],saveSongCreationDraft:["song_drafts.save"],deleteSongCreationDraft:["song_drafts.delete"],getArtistVoice:["voices.get"],setArtistVoice:["voices.create"],deleteArtistVoice:["voices.delete"],
   listCharacters:["characters.list"],getFaceCheck:["characters.face_check.get"],startFaceCheck:["characters.face_check.start"],withdrawFaceCheck:["characters.face_check.withdraw"],startCharacter:["character_requests.create"],getCharacterRequest:["character_requests.get"],drawCharacterSheet:["character_requests.draw"],keepCharacter:["character_requests.keep"],discardCharacterRequest:["character_requests.delete"],listCharacterRequests:["character_requests.list"],
   listKit:["kit.list"],addKitPiece:["kit.add"],getKitPiece:["kit.get"],updateKitPiece:["kit.update"],deleteKitPiece:["kit.delete"],drawPlaceAngles:["kit.angles"],
   castMusicVideo:["music_video_castings.create"],getCasting:["music_video_castings.get"],drawCast:["music_video_castings.draw"],deleteCasting:["music_video_castings.delete"],
   suggestIdea:["ideas.suggest"],listIdeas:["ideas.list"],getIdea:["ideas.get"],voteForIdea:["ideas.vote"],removeIdeaVote:["ideas.unvote"],followIdea:["ideas.follow"],unfollowIdea:["ideas.unfollow"],
 };
 
-// The Look's parts a lyric video (and Save as Look) can change: lyric style, visual and picture (the Look's own, clips or a visualizer).
+// How a lyric video looks: lyric style, visual and picture (the song's draft's, clips or a visualizer); each left out is the song's draft's.
 const clips={picture:["clips"]};
-const lookChangeFields:INodeProperties[]=[
-  {displayName:"Lyric Style",name:"lyricStyle",type:"options",options:[{name:"Look's Own",value:"",description:"The Look's own lyric style"},...LYRIC_STYLES],default:"",
-    description:"How the lyrics are presented and animated: the Look's design with that style's motion, at no extra cost"},
+const lyricFields:INodeProperties[]=[
+  {displayName:"Lyric Style",name:"lyricStyle",type:"options",options:[{name:"The Song's Draft",value:"",description:"The lyric style Kinetune picks for the song (Get Song Draft shows it)"},...LYRIC_STYLES],default:"",
+    description:"How the lyrics are presented and animated, with the style's own colours and type, at no extra cost"},
   {displayName:"Words Behind the Subject",name:"behind",type:"options",options:[{name:"As the Style Has It",value:""},{name:"On",value:"on",description:"Big words go behind the person or figure in the clips"},{name:"Off",value:"off"}],default:"",
     description:"Only lyric styles with big words take it (Get Options marks them behind); others keep their words in front. Free."},
   {displayName:"Visual",name:"visual",type:"string",default:"",placeholder:"liquid/amber-aurora",
-    description:"The visual that moves with the music, for the whole song: a key from Get Options (visualizers.presets), or none for no visual. Empty: the Look's own."},
+    description:"The visual that moves with the music, for the whole song: a key from Get Options (visualizers.presets), or none for no visual. Empty: the song's draft's."},
   {displayName:"Picture",name:"picture",type:"options",options:[
-    {name:"Look's Own",value:"",description:"The Look's own picture (a Look made before clips plays its picture as clips of its own)"},
+    {name:"The Song's Draft",value:"",description:"The clips Kinetune picks for the song (Get Song Draft shows them)"},
     {name:"Clips",value:"clips",description:"Short clips from Stock collections and your folders (My footage), cut on the beat"},
     {name:"Visualizer",value:"visualizer",description:"No picture: the visual fills the frame behind the words"},
   ],default:""},
@@ -402,8 +397,6 @@ const lookChangeFields:INodeProperties[]=[
     description: 'Stock collection IDs from Get Options (clip_moods), comma-separated. With Clip Folders, at least one source, and at most as many as your plan allows (Get Account: limits.clip_sources).',displayOptions:{show:clips}},
   {displayName:"Clip Folders",name:"clipFolders",type:"string",default:"",placeholder:"folder_…",
     description: 'Your clip folder IDs (List Clip Folders), comma-separated',displayOptions:{show:clips}},
-  {displayName:"Clip Looks",name:"clipLooks",type:"string",default:"",placeholder:"look_…",
-    description: 'Look IDs whose own picture plays as clips (a Look made before clips: its background.sources.looks), comma-separated',displayOptions:{show:clips}},
   {displayName:"Cuts",name:"cutDensity",type:"options",options:[{name:"One Clip",value:"one",description:"One clip for the whole video"},{name:"Fewer",value:"fewer",description:"Calm"},{name:"Even",value:"even",description:"The song's own pulse"},{name:"More",value:"more",description:"Busy"}],default:"even",
     description:"How often the clips cut on the beat",displayOptions:{show:clips}},
   {displayName:"Transitions",name:"transitionStyle",type:"options",options:CLIP_TRANSITION_STYLES,default:"auto",description:"How the clips meet",displayOptions:{show:clips}},
@@ -419,11 +412,6 @@ const lookChangeFields:INodeProperties[]=[
   {displayName:"Wide Clips Fill",name:"clipFill",type:"options",options:[{name:"Cover",value:"cover",description:"Fill the frame, the sides trimmed"},{name:"Blur",value:"blur",description:"A blurred copy behind it"},{name:"Bars",value:"bars",description:"Black bars"}],default:"blur",
     description:"How a clip of the other shape fills the frame",displayOptions:{show:clips}},
   {displayName:"Speed",name:"clipSpeed",type:"options",options:CLIP_SPEEDS.map(v=>({name:v+"×",value:v})),default:1,description:"How fast the clips play",displayOptions:{show:clips}},
-];
-const lyricFields:INodeProperties[]=[
-  {displayName:"Look ID",name:"lookId",type:"string",default:"",placeholder:"look_…",
-    description:"A saved Look (List Looks). Empty: Kinetune picks one for the song (Get Song Draft shows which)."},
-  ...lookChangeFields,
   {displayName:"Seed",name:"clipSeed",type:"number",typeOptions:{minValue:0,numberPrecision:0},default:0,
     description: 'Which clips land where; the same seed makes the same video, another one other clips on the same cuts. 0: the first.',displayOptions:{show:clips}},
   {displayName:"Variations",name:"variations",type:"number",typeOptions:{minValue:1,maxValue:4,numberPrecision:0},default:1,
@@ -436,11 +424,11 @@ const lyricFields:INodeProperties[]=[
   {displayName:"Show Cover Art",name:"showCover",type:"boolean",default:true},
   {displayName:"Show Lyrics",name:"showLyrics",type:"boolean",default:true},
   {displayName:"Show Streaming Badges",name:"showBadges",type:"boolean",default:true},
-  {displayName:"Cover Size (%)",name:"coverSize",type:"number",typeOptions:{minValue:75,maxValue:125,numberPrecision:0},default:100,description:"Cover art size relative to the Look's design (75–125). The layout still keeps everything inside the frame."},
-  {displayName:"Title & Artist Size (%)",name:"textSize",type:"number",typeOptions:{minValue:85,maxValue:130,numberPrecision:0},default:100,description:"Song title and artist name size relative to the Look's design (85–130). Titles stay within two lines."},
+  {displayName:"Cover Size (%)",name:"coverSize",type:"number",typeOptions:{minValue:75,maxValue:125,numberPrecision:0},default:100,description:"Cover art size relative to the lyric style's design (75–125). The layout still keeps everything inside the frame."},
+  {displayName:"Title & Artist Size (%)",name:"textSize",type:"number",typeOptions:{minValue:85,maxValue:130,numberPrecision:0},default:100,description:"Song title and artist name size relative to the lyric style's design (85–130). Titles stay within two lines."},
   {displayName:"Artist Name Size (%)",name:"artistSize",type:"number",typeOptions:{minValue:85,maxValue:150,numberPrecision:0},default:100,description:"Artist name size on top of Title & Artist Size (85–150). It never grows past 90% of the title."},
-  {displayName:"Spacing (%)",name:"spacing",type:"number",typeOptions:{minValue:75,maxValue:150,numberPrecision:0},default:100,description:"Space between all elements, relative to the Look's design (75–150). The layout still keeps everything inside the frame."},
-  {displayName:"Headline",name:"headline",type:"options",options:[{name:"Coming Soon",value:"coming-soon"},{name:"Listen Now",value:"listen-now"},{name:"Look Default",value:"look"},{name:"New Release",value:"new-release"},{name:"None",value:"none"},{name:"Out Now",value:"out-now"}],default:"look"},
+  {displayName:"Spacing (%)",name:"spacing",type:"number",typeOptions:{minValue:75,maxValue:150,numberPrecision:0},default:100,description:"Space between all elements, relative to the lyric style's design (75–150). The layout still keeps everything inside the frame."},
+  {displayName:"Headline",name:"headline",type:"options",options:[{name:"Coming Soon",value:"coming-soon"},{name:"Listen Now",value:"listen-now"},{name:"New Release",value:"new-release"},{name:"None",value:"none"},{name:"Out Now",value:"out-now"},{name:"The Style's Own",value:"default"}],default:"default"},
   {displayName:"Title Card",name:"titleCard",type:"options",options:[{name:"Default",value:"auto",description:"Start and end over clips, every break otherwise"},{name:"Start and End",value:"ends"},{name:"Every Break",value:"breaks"},{name:"Only the Label",value:"label"}],default:"auto",description: 'When a kinetic lyric style shows its big title card (cover, title, artist) instead of the small label: in the stretches without lyrics at the start and end, also in every break of 3 seconds or more, or never'},
 ];
 const canvasShows=(kinds:string[])=>({displayOptions:{show:{canvasPicture:kinds}}});
@@ -605,7 +593,7 @@ const musicBriefFields:INodeProperties[]=[
     {name:"Continuous Takes",value:"continuous",description:"The director may carry a shot on into the next through a picture drawn at the join (priced per picture)"}]},
   {displayName:"Outro",name:"musicOutro",type:"multiOptions",default:[],description: 'End on a release card after the last shot (the song plays on under it), showing these (none: no outro). Free.',
     options:[{name:"Cover Art",value:"cover"},{name:"Song Title",value:"title"},{name:"Artist Name",value:"artist"},{name:"Streaming Badges",value:"badges"}],displayOptions:{show:{operation:["quote","create"]}}},
-  {displayName:"Outro Look ID",name:"musicOutroLookId",type:"string",default:"",description:"Optional: a lyric video Look whose card the outro uses as it is (empty: the director designs it)",displayOptions:{show:{operation:["quote","create"]}}},
+  {displayName:"Outro Card",name:"musicOutroKind",type:"options",default:"director",options:[{name:"Designed by the Director",value:"director",description:"Designed for this video"},{name:"Release Card",value:"release-card",description:"The card the artist's lyric videos end on, in their lyric style's colours and type"}],description:"How the outro card looks",displayOptions:{show:{operation:["quote","create"]}}},
   {displayName:"Finish Again: Video ID",name:"musicRefinishId",type:"string",default:"",description:"Finish this delivered music video again with the outro above (or none): no shot made, setup only",displayOptions:{show:{operation:["quote","create"]}}},
   {displayName:"Test the Chorus First",name:"musicTest",type:"boolean",default:false,description: 'Whether to make only the plan\'s chorus shots (about 20 seconds) at 480p, to check the face, the look and the lip-sync before the whole video. Needs a Plan ID; no outro.',displayOptions:{show:{operation:["quote","create"]}}},
   {displayName:"Casting ID",name:"musicCastingId",type:"string",default:"",placeholder:"casting_…",description:"Optional, without a plan: a casting (Cast Music Video) you said yes to in full; its people are drawn inside the order (a New cast line in the quote, only those drawn are charged) and added to the people",displayOptions:{show:{operation:["quote","create"]}}},
@@ -694,16 +682,9 @@ export const OPERATIONS=[
         {name:"Delete Video",value:"deleteVideo",action:"Delete a video"},
         {name:"List Video Drafts",value:"listVideoDrafts",description:"Videos started in the studio and not made yet, one per song and kind, newest first (kept 30 days)",action:"List video drafts"},
         {name:"Delete Video Drafts",value:"deleteVideoDrafts",description:"One draft, or every draft (only a song's or a kind's); videos already made stay",action:"Delete video drafts"},
-        {name:"Make Video Public",value:"shareVideo",description:"Shows a delivered video in the Community, its Look reusable by anyone; only on the person's own say-so (a music video needs their word that they may show the artist)",action:"Make a video public"},
-        {name:"Make Video Private",value:"unshareVideo",description:"Takes a video out of the Community, its Look private again (its reward credits go back)",action:"Make a video private"},
+        {name:"Make Video Public",value:"shareVideo",description:"Shows a delivered video in the Community, a music video's Look reusable by anyone; only on the person's own say-so (a music video needs their word that they may show the artist)",action:"Make a video public"},
+        {name:"Make Video Private",value:"unshareVideo",description:"Takes a video out of the Community, a music video's Look private again (its reward credits go back)",action:"Make a video private"},
         {name:"Retry Video",value:"retry",action:"Retry a video"},
-        {name:"List Looks",value:"listLooks",action:"List looks"},
-        {name:"Get Look",value:"getLook",action:"Get a look"},
-        {name:"Get Look Clips",value:"getLookClips",action:"Get the clips of a clips look",description:"The clips a clips Look cuts its picture from, to preview it"},
-        {name:"Rename Look",value:"renameLook",action:"Rename a look"},
-        {name:"Delete Look",value:"deleteLook",action:"Delete a look"},
-        {name:"Set Look Visibility",value:"setVisibility",description:"Public earns 10 credits; private returns them",action:"Set look visibility"},
-        {name:"Save as Look",value:"saveLook",description:"A private Look made from a saved one with your changes (lyric style, visual, picture): use its ID as Look ID",action:"Save as a look"},
         {name:"Get Options",value:"options",description:"Lyric styles, visuals, clip moods, transitions and grades, formats, size ranges and credit prices",action:"Get options"},
         {name:"List Artists",value:"listArtists",action:"List artists"},
         {name:"Create Artist",value:"createArtist",action:"Create an artist"},
@@ -723,6 +704,17 @@ export const OPERATIONS=[
         {name:"Get Song",value:"getSong",action:"Get a song"},
         {name:"Rename Song",value:"renameSong",action:"Rename a song"},
         {name:"Change Song Cover",value:"setSongCover",description:"Replace the cover art: videos already made keep theirs, new ones use it",action:"Change a song's cover"},
+        {name:"Write Song Lyrics",value:"writeSongLyrics",description:"Lyrics, a title and a style line from your idea, for an artist (a few credits)",action:"Write song lyrics"},
+        {name:"Price New Song",value:"quoteNewSong",description:"What making a song costs: its takes from a model",action:"Price a new song"},
+        {name:"Make Song",value:"makeSong",description:"Kinetune makes a new song for an artist with an AI music model, 1 to 4 takes (spends credits; needs a plan)",action:"Make a song"},
+        {name:"Get Song Creation",value:"getSongCreation",description:"A song being made: its takes, each with the song it became",action:"Get a song creation"},
+        {name:"List Song Creations",value:"listSongCreations",description:"An artist's songs made, newest first",action:"List song creations"},
+        {name:"Get Artist Voice",value:"getArtistVoice",description:"The artist's Voice for songs Kinetune makes, the style their songs suggest, and what setting one up costs",action:"Get an artist's voice"},
+        {name:"Set Up Artist Voice",value:"setArtistVoice",description:"Keeps 15-30 seconds of the artist's voice so songs can be sung in it (spends credits)",action:"Set up an artist's voice"},
+        {name:"Get Song Draft",value:"getSongCreationDraft",description:"Your Create a song fields for an artist, with every lyrics write kept",action:"Get a song draft"},
+        {name:"Save Song Draft",value:"saveSongCreationDraft",description:"Saves your Create a song fields for an artist, to pick up later",action:"Save a song draft"},
+        {name:"Delete Song Draft",value:"deleteSongCreationDraft",description:"Starts Create a song over for an artist; its kept lyrics writes go with it",action:"Delete a song draft"},
+        {name:"Forget Artist Voice",value:"deleteArtistVoice",description:"Deletes the artist's Voice; songs already made keep their sound",action:"Forget an artist's voice"},
         {name:"Price Covers",value:"quoteCovers",description:"What a round of 1 to 4 covers costs, and redrawing one",action:"Price covers"},
         {name:"Make Covers",value:"makeCovers",description:"Kinetune's cover art director makes 1 to 4 covers for an analysed song, each a different idea (spends credits; needs a paid plan)",action:"Make covers"},
         {name:"Get Covers Round",value:"getCoverRequest",description:"A round's ideas, each with its cover once drawn",action:"Get a round of covers"},
@@ -750,9 +742,9 @@ export const OPERATIONS=[
         {name:"Search Stock",value:"searchStock",description:"Stock photos or clips: a video to import into one of your folders or bring into a Canvas, a kit piece or a music video place",action:"Search stock media"},
         {name:"Get Video Draft",value:"getVideoDraft",description:"The person's own lyric video or Canvas draft (the editor's): its clips, the cut and the exact request to quote",action:"Get the video draft"},
         {name:"Change Video Draft",value:"editVideoDraft",description:"Change the draft as the editor would: Shuffle, a clip at a cut, a transition, sources, grade, effects, format",action:"Change the video draft"},
-        {name:"Get Song Draft",value:"getSongDraft",description:"The Look and clips picture Kinetune picks for a song, at once and without AI: a lyric video without a Look ID makes exactly this",action:"Get a song's draft lyric video"},
+        {name:"Get Song Draft",value:"getSongDraft",description:"The lyric style and clips picture Kinetune picks for a song, at once and without AI: a lyric video with nothing changed makes exactly this",action:"Get a song's draft lyric video"},
         {name:"List Clips",value:"listClips",description:"The clips of Stock collections and your folders, with their length, shape, motion and a preview",action:"List clips"},
-        {name:"Browse Collection",value:"browseClipMood",description:"The clips inside one Stock collection (Feelings or Places & textures), a page at a time, by shape and energy",action:"Browse a stock collection"},
+        {name:"Browse Collection",value:"browseClipMood",description:"The clips inside one Stock collection (Feelings or Places & textures), a page at a time, by shape and energy",action:"Browse a Stock collection"},
         {name:"Similar Clips",value:"similarClips",description: 'More like this: clips from Stock and your folders that look and move like one clip. No AI, no credits.',action:"Find similar clips"},
         {name:"Clip as Rebound",value:"clipRebound",description: 'A clip forward, then backward: the file a Canvas Rebound loops. No AI, no credits.',action:"Get a clip as a rebound"},
         {name:"Clip Steadied",value:"clipSteady",description: 'A clip with handheld shake smoothed out: the file a Canvas with Steady plays. No AI, no credits.',action:"Get a clip steadied"},
@@ -768,10 +760,10 @@ export const OPERATIONS=[
         {name:"Get Clip Folder",value:"getClipFolder",description:"A folder's clips and the imports still on their way",action:"Get a clip folder"},
         {name:"Rename Clip Folder",value:"renameClipFolder",action:"Rename a clip folder"},
         {name:"Delete Clip Folder",value:"deleteClipFolder",description:"Removes a folder and its clips; videos already made with them keep them",action:"Delete a clip folder"},
-        {name:"List Canvas Presets",value:"listCanvasPresets",description:"Your saved Canvas looks (loop, length, grade, effects, light, atmosphere), the latest first",action:"List canvas presets"},
-        {name:"Save Canvas Preset",value:"saveCanvasPreset",description: 'Keep a Canvas look under a name; the same name again replaces it. Free.',action:"Save a canvas preset"},
-        {name:"Rename Canvas Preset",value:"renameCanvasPreset",action:"Rename a canvas preset"},
-        {name:"Delete Canvas Preset",value:"deleteCanvasPreset",action:"Delete a canvas preset"},
+        {name:"List Canvas Presets",value:"listCanvasPresets",description:"Your saved Canvas looks (loop, length, grade, effects, light, atmosphere), the latest first",action:"List Canvas presets"},
+        {name:"Save Canvas Preset",value:"saveCanvasPreset",description: 'Keep a Canvas look under a name; the same name again replaces it. Free.',action:"Save a Canvas preset"},
+        {name:"Rename Canvas Preset",value:"renameCanvasPreset",action:"Rename a Canvas preset"},
+        {name:"Delete Canvas Preset",value:"deleteCanvasPreset",action:"Delete a Canvas preset"},
         {name:"Import Clips",value:"importClips",description: 'Cuts a video into clips of 1 to 5 seconds in one of your folders, at every scene change: a link, a file or a stock video. Free.',action:"Import clips"},
         {name:"Set Artist Image",value:"setArtistImage",description:"Upload or replace the artist's picture on their page and in lists, cropped to a square",action:"Set an artist's image"},
         {name:"Remove Artist Image",value:"removeArtistImage",description:"The artist shows their initial until another image is set",action:"Remove an artist's image"},
@@ -812,10 +804,9 @@ export const OPERATIONS=[
         {name:"Draw Cast",value:"drawCast",description:"Draws the people you keep as character sheets for the credits shown (spends credits)",action:"Draw a music video's cast"},
         {name:"Delete Casting",value:"deleteCasting",description:"Deletes a casting; the people already kept stay in the kit",action:"Delete a casting"},
 ] satisfies INodePropertyOptions[];
-type OperationValue=(typeof OPERATIONS)[number]["value"];
-export const RESOURCES:{name:string,value:string,operations:OperationValue[]}[]=[
+export const RESOURCES:{name:string,value:string,operations:string[]}[]=[
   {name:"Account",value:"account",operations:["getAccount","options","createUpload","listOrganizations","createOrganization","updateOrganization"]},
-  {name:"Artist",value:"artist",operations:["listArtists","createArtist","getArtist","renameArtist","archiveArtist","findArtistInCatalog","linkArtist","setArtistImage","removeArtistImage"]},
+  {name:"Artist",value:"artist",operations:["listArtists","createArtist","getArtist","renameArtist","archiveArtist","findArtistInCatalog","linkArtist","setArtistImage","removeArtistImage","getArtistVoice","setArtistVoice","deleteArtistVoice"]},
   {name:"Artist Page",value:"artistPage",operations:["getArtistPage","updateArtistPage","previewArtistPage","publishArtistPage","unpublishArtistPage","getArtistPageStats","claimArtistHandle","checkHandle","listArtistProfiles","addArtistProfile","reorderArtistProfiles","updateArtistProfile","removeArtistProfile","confirmAllArtistProfiles","discoverArtistProfiles"]},
   {name:"Character",value:"character",operations:["listCharacters","startCharacter","listCharacterRequests","getCharacterRequest","drawCharacterSheet","keepCharacter","discardCharacterRequest","getFaceCheck","startFaceCheck","withdrawFaceCheck"]},
   {name:"Clip",value:"clip",operations:["listClips","browseClipMood","searchStock","similarClips","clipRebound","clipSteady","clipBestSpot","generateClips","importClips","retryClipImport","dismissClipImport","analyzeClips","moveClips","deleteClip"]},
@@ -823,9 +814,10 @@ export const RESOURCES:{name:string,value:string,operations:OperationValue[]}[]=
   {name:"Cover",value:"cover",operations:["quoteCovers","makeCovers","getCoverRequest","redrawCover","listSongCovers","useCover","deleteCover","setSongCover","downloadSongCover"]},
   {name:"Idea",value:"idea",operations:["suggestIdea","listIdeas","getIdea","voteForIdea","removeIdeaVote","followIdea","unfollowIdea"]},
   {name:"Kit",value:"kit",operations:["listKit","addKitPiece","getKitPiece","updateKitPiece","deleteKitPiece","drawPlaceAngles","castMusicVideo","getCasting","drawCast","deleteCasting"]},
-  {name:"Look",value:"look",operations:["listLooks","getLook","getLookClips","saveLook","renameLook","setVisibility","deleteLook","listMusicVideoLooks","getMusicVideoLook","saveMusicVideoLook","deleteMusicVideoLook","listCanvasPresets","saveCanvasPreset","renameCanvasPreset","deleteCanvasPreset"]},
+  {name:"Look",value:"look",operations:["listMusicVideoLooks","getMusicVideoLook","saveMusicVideoLook","deleteMusicVideoLook","listCanvasPresets","saveCanvasPreset","renameCanvasPreset","deleteCanvasPreset"]},
   {name:"Music Video Shot List",value:"shotList",operations:["planMusicVideo","getMusicVideoPlan","getMusicVideoPlanWrite","listMusicVideoDrafts","getMusicVideoStoryboard","listMusicVideoFrames","drawMusicVideoFrame","listMusicVideoPictures","drawMusicVideoPictures","dropMusicVideoAngle","swapMusicVideoPlace","checkMusicVideoModel","switchMusicVideoModel","listMusicVideoVersions","deleteMusicVideoVersion","deleteMusicVideoPlan","priceMusicVideoRevision","reviseMusicVideoShot"]},
   {name:"Song",value:"song",operations:["listSongs","createSong","getSong","renameSong","archiveSong","songAnalysis","reanalyzeSong","transcribeSong","setSongLyrics","clearSongLyrics","setSongWords","editSongBrief","rewriteSongBrief","getSongDraft","downloadSongAudio"]},
+  {name:"Song Creation",value:"songCreation",operations:["writeSongLyrics","quoteNewSong","makeSong","getSongCreation","listSongCreations","getSongCreationDraft","saveSongCreationDraft","deleteSongCreationDraft"]},
   {name:"Song Import",value:"songImport",operations:["listReleasedSongs","importSongs","listSongImports","getSongImport","addSongImportAudio","cancelSongImport"]},
   {name:"Video",value:"video",operations:["quote","create","get","listVideos","cancel","retry","deleteVideo","shareVideo","unshareVideo","listVideoDrafts","getVideoDraft","editVideoDraft","deleteVideoDrafts"]},
 ];
@@ -834,9 +826,8 @@ const operationFields:INodeProperties[]=[
   {displayName:"Operation",name:"operation",type:"options",noDataExpression:true,default:"quote",options:[...OPERATIONS].sort(byName),displayOptions:{show:{"@version":[1]}}},
   {displayName:"Resource",name:"resource",type:"options",noDataExpression:true,default:"video",options:RESOURCES.map(({name,value})=>({name,value})),displayOptions:{show:{"@version":[2]}}},
   ...RESOURCES.map(r=>({displayName:"Operation",name:"operation",type:"options" as const,noDataExpression:true,default:r.operations[0]!,
-    options:OPERATIONS.filter(o=>(r.operations as string[]).includes(o.value)).sort(byName),displayOptions:{show:{resource:[r.value],"@version":[2]}}})),
+    options:OPERATIONS.filter(o=>r.operations.includes(o.value)).sort(byName),displayOptions:{show:{resource:[r.value],"@version":[2]}}})),
 ];
-
 export class Kinetune implements INodeType {
   description:INodeTypeDescription={
     displayName:"Kinetune",
@@ -845,8 +836,9 @@ export class Kinetune implements INodeType {
     group:["transform"],
     version:[1,2],
     defaultVersion:2,
+    usableAsTool:true,
     subtitle:"={{$parameter.operation}}",
-    description:"Quote, render and manage lyric videos, Canvases, music videos and Looks",
+    description:"Quote, render and manage lyric videos, Canvases and music videos",
     defaults:{name:"Kinetune"},
     inputs:[NodeConnectionTypes.Main],
     outputs:[NodeConnectionTypes.Main],
@@ -909,13 +901,7 @@ export class Kinetune implements INodeType {
       {displayName:"Quote ID",name:"listQuoteId",type:"string",default:"",description:"Only the videos this quote made (none until it is used)",displayOptions:{show:{operation:["listVideos"]}}},
       {displayName:"Limit",name:"listLimit",type:"number",typeOptions:{minValue:1,maxValue:100},default:50,displayOptions:{show:{operation:["listVideos"]}}},
       {displayName:"Cursor",name:"listCursor",type:"string",default:"",description: 'Next_cursor from the previous page; leave empty for the first page',displayOptions:{show:{operation:["listVideos"]}}},
-      {displayName:"Look ID",name:"lookId",type:"string",default:"",required:true,displayOptions:{show:{operation:["getLook","getLookClips","setVisibility","renameLook","deleteLook"]}}},
-      {displayName:"New Name",name:"newName",type:"string",default:"",required:true,displayOptions:{show:{operation:["renameLook","renameArtist","renameSong"]}}},
-      {displayName:"Visibility",name:"visibility",type:"options",options:[{name:"Public",value:"public"},{name:"Private",value:"private"}],default:"public",displayOptions:{show:{operation:["setVisibility"]}}},
-      {displayName:"Library",name:"scope",type:"options",options:[{name:"All Available",value:"all"},{name:"Official",value:"official"},{name:"Community",value:"community"},{name:"Mine",value:"mine"}],default:"all",displayOptions:{show:{operation:["listLooks"]}}},
-      {displayName:"Category",name:"category",type:"options",options:[{name:"Any",value:""},...CATEGORIES],default:"",displayOptions:{show:{operation:["listLooks"]}}},
-      {displayName:"Lyric Style",name:"lookLyricStyle",type:"options",options:[{name:"Any",value:""},...LYRIC_STYLES],default:"",displayOptions:{show:{operation:["listLooks"]}}},
-      locator("Artist","artistId","searchArtists","an artist",{description:"The artist of the song you're choosing for: Looks that show another artist are left out. Leave empty for all.",displayOptions:{show:{operation:["listLooks"]}}}),
+      {displayName:"New Name",name:"newName",type:"string",default:"",required:true,displayOptions:{show:{operation:["renameArtist","renameSong"]}}},
       {displayName:"Workspace Name",name:"organizationName",type:"string",default:"",required:true,placeholder:"Night Shift Records",
         description:"2 to 80 characters. The key keeps acting for its own workspace: choose a plan in the new one and create an API key there to work in it.",displayOptions:{show:{operation:["createOrganization"]}}},
       {displayName:"Workspace Type",name:"organizationType",type:"options",options:[{name:"Artist (One Artist and Its Songs)",value:"artist"},{name:"Label or Team (a Roster of Artists)",value:"label"},{name:"Creator (Projects, a Performer Optional)",value:"creator"}],default:"label",
@@ -936,8 +922,7 @@ export class Kinetune implements INodeType {
       {displayName:"Track IDs",name:"trackIds",type:"string",default:"",required:true,placeholder:"6817595861, 6816549264",
         description: 'The released songs to bring in, comma-separated (List Released Songs: ID). Only the artist\'s own songs.',displayOptions:{show:{operation:["importSongs"]}}},
       {displayName:"Import ID",name:"importId",type:"string",default:"",required:true,placeholder:"import_…",displayOptions:{show:{operation:["getSongImport","addSongImportAudio","cancelSongImport"]}}},
-      {displayName:"Import Status",name:"importStatus",type:"options",default:"",options:[{name:"Any",value:""},{name:"Done",value:"done"},{name:"Failed",value:"failed"},
-        {name:"Fetching",value:"fetching"},{name:"Queued",value:"queued"}],displayOptions:{show:{operation:["listSongImports"]}}},
+      {displayName:"Import Status",name:"importStatus",type:"options",default:"",options:[{name:"Any",value:""},{name:"Done",value:"done"},{name:"Failed",value:"failed"},{name:"Fetching",value:"fetching"},{name:"Queued",value:"queued"}],displayOptions:{show:{operation:["listSongImports"]}}},
       // Music lists: search, filters and paging, as the API takes them (q, status, sort, limit, offset).
       locator("Artist","artistId","searchArtists","an artist",{description:"Only this artist's songs; leave empty for all",displayOptions:{show:{operation:["listSongs"]}}}),
       {displayName:"Search",name:"search",type:"string",default:"",placeholder:"Part of the name",description:"Only artists whose name contains this",displayOptions:{show:{operation:["listArtists"]}}},
@@ -978,10 +963,9 @@ export class Kinetune implements INodeType {
       {displayName:"Person",name:"characterPerson",type:"options",default:"",
         options:[{name:"Not Said (Counts as Real)",value:""},{name:"Real Person (Seedance Needs Their Face Check)",value:"real"},{name:"AI-Made, Looks Like No Real Person",value:"ai"}],
         description:"Whether the character shows a real person or an AI-made one; for a kit piece, characters only",displayOptions:{show:{operation:["keepCharacter","updateKitPiece"]}}},
-      // Clips: the library's and your folders', and Save as Look.
+      // Clips: the library's and your folders'.
       {displayName:"Clip Moods",name:"clipMoods",type:"string",default:"",placeholder:"city,golden",description: 'Stock collection IDs from Get Options (clip_moods), comma-separated',displayOptions:{show:{operation:["listClips"]}}},
       {displayName:"Clip Folders",name:"clipFolders",type:"string",default:"",placeholder:"folder_…",description: 'Your clip folder IDs (List Clip Folders), comma-separated',displayOptions:{show:{operation:["listClips"]}}},
-      {displayName:"Clip Looks",name:"clipLooks",type:"string",default:"",placeholder:"look_…",description: 'Look IDs whose own picture plays as clips, comma-separated',displayOptions:{show:{operation:["listClips"]}}},
       {displayName:"Prompt",name:"clipPrompt",type:"string",typeOptions:{rows:2},default:"",placeholder:"A diner at 3am, rain on the window",
         description: 'What it shows (3 to 500 characters). Optional with Idea From.',displayOptions:{show:{operation:["generateClips"]}}},
       {displayName:"Idea From",name:"clipFrom",type:"options",options:[{name:"Only the Prompt",value:""},{name:"The Song",value:"song",description:"What the song is about"},{name:"The Cover",value:"cover",description:"The cover's world, with the cover as the reference"}],default:"",
@@ -1034,9 +1018,6 @@ export class Kinetune implements INodeType {
       {displayName:"Link",name:"clipImportUrl",type:"string",default:"",required:true,placeholder:"https://www.youtube.com/watch?v=…",displayOptions:{show:{operation:["importClips"],clipImportSource:["url"]}}},
       {displayName:"File URL",name:"clipImportFileUrl",type:"string",default:"",required:true,placeholder:"https://…",displayOptions:{show:{operation:["importClips"],clipImportSource:["file"]}}},
       {displayName:"Stock Video ID",name:"clipImportStockId",type:"string",default:"",required:true,placeholder:"3571264",displayOptions:{show:{operation:["importClips"],clipImportSource:["stock"]}}},
-      {displayName:"Name",name:"lookName",type:"string",default:"",required:true,placeholder:"Night drive",description:"2 to 60 characters",displayOptions:{show:{operation:["saveLook"]}}},
-      {displayName:"From Look ID",name:"fromLookId",type:"string",default:"",required:true,placeholder:"look_…",description:"The saved Look it starts from (List Looks, or Get Song Draft's look_id)",displayOptions:{show:{operation:["saveLook"]}}},
-      ...lookChangeFields.map(shownWith({operation:["saveLook"]})),
       {displayName:"Kind",name:"stockKind",type:"options",options:[{name:"Photo",value:"photo"},{name:"Video",value:"video"}],default:"photo",displayOptions:{show:{operation:["searchStock"]}}},
       {displayName:"Search",name:"stockQuery",type:"string",default:"",required:true,placeholder:"foggy pine forest",displayOptions:{show:{operation:["searchStock"]}}},
       {displayName:"Orientation",name:"stockOrientation",type:"options",options:[{name:"Portrait",value:"portrait",description:"For 9:16 and 1:1, and Canvases"},{name:"Landscape",value:"landscape",description:"When 16:9 is among the formats"}],default:"portrait",displayOptions:{show:{operation:["searchStock"]}}},
@@ -1051,8 +1032,7 @@ export class Kinetune implements INodeType {
       {displayName:"Idea ID",name:"ideaId",type:"string",default:"",required:true,placeholder:"idea_…",displayOptions:{show:{operation:["getIdea","voteForIdea","removeIdeaVote","followIdea","unfollowIdea"]}}},
       {displayName:"Search",name:"ideaSearch",type:"string",default:"",description:"Words in the title or details",displayOptions:{show:{operation:["listIdeas"]}}},
       {displayName:"Sort",name:"ideaSort",type:"options",options:[{name:"Most Voted",value:"top"},{name:"Newest",value:"new"}],default:"top",displayOptions:{show:{operation:["listIdeas"]}}},
-      {displayName:"Status",name:"ideaStatus",type:"options",options:[{name:"Any",value:""},{name:"Declined",value:"declined"},{name:"In Progress",value:"in_progress"},{name:"Open",value:"open"},
-        {name:"Planned",value:"planned"},{name:"Shipped",value:"shipped"},{name:"Under Review",value:"under_review"}],default:"",displayOptions:{show:{operation:["listIdeas"]}}},
+      {displayName:"Status",name:"ideaStatus",type:"options",options:[{name:"Any",value:""},{name:"Declined",value:"declined"},{name:"In Progress",value:"in_progress"},{name:"Open",value:"open"},{name:"Planned",value:"planned"},{name:"Shipped",value:"shipped"},{name:"Under Review",value:"under_review"}],default:"",displayOptions:{show:{operation:["listIdeas"]}}},
       {displayName:"About",name:"ideaListArea",type:"options",options:[{name:"Any",value:""},{name:"Canvases",value:"canvas"},{name:"Lyric Videos",value:"lyric-video"},{name:"Music Videos",value:"music-video"},{name:"Whole App",value:"everything"}],
         default:"",displayOptions:{show:{operation:["listIdeas"]}}},
       {displayName:"Only Yours",name:"ideaYours",type:"boolean",default:false,description:"Whether to list only the ones you suggested or voted for",displayOptions:{show:{operation:["listIdeas"]}}},
@@ -1122,11 +1102,7 @@ export class Kinetune implements INodeType {
       {displayName:"I Have the Rights to This Image",name:"kitRights",type:"boolean",default:false,required:true,displayOptions:{show:{operation:["addKitPiece"],kitSource:["binary","url"]}}},
       {displayName:"Kit Piece ID",name:"kitId",type:"string",default:"",required:true,placeholder:"kit_…",displayOptions:{show:{operation:["getKitPiece","updateKitPiece","deleteKitPiece","drawPlaceAngles"]}}},
       {displayName:"Angles",name:"kitAngles",type:"multiOptions",default:["three-quarter","side","low"],
-        options:[{name:"Corner",value:"corner",description:"From a far corner, on the diagonal"},{name:"Detail",value:"detail",description:"Close on one object or texture"},
-          {name:"Framed",value:"framed",description:"Through a doorway or something near"},{name:"High",value:"high",description:"From up high, looking down"},
-          {name:"Low",value:"low",description:"Near the floor, looking up"},{name:"Overhead",value:"overhead",description:"Straight down from above"},
-          {name:"Reverse",value:"reverse",description:"Turned round, facing the other way"},{name:"Side",value:"side",description:"Across it, in profile"},
-          {name:"Three-Quarter",value:"three-quarter",description:"Round to one side, in depth"},{name:"Wide",value:"wide",description:"The whole set, pulled far back"}],
+        options:[{name:"Corner",value:"corner",description:"From a far corner, on the diagonal"},{name:"Detail",value:"detail",description:"Close on one object or texture"},{name:"Framed",value:"framed",description:"Through a doorway or something near"},{name:"High",value:"high",description:"From up high, looking down"},{name:"Low",value:"low",description:"Near the floor, looking up"},{name:"Overhead",value:"overhead",description:"Straight down from above"},{name:"Reverse",value:"reverse",description:"Turned round, facing the other way"},{name:"Side",value:"side",description:"Across it, in profile"},{name:"Three-Quarter",value:"three-quarter",description:"Round to one side, in depth"},{name:"Wide",value:"wide",description:"The whole set, pulled far back"}],
         description:"Which angles of the place to draw, one or more (each is one picture, priced in credits)",displayOptions:{show:{operation:["drawPlaceAngles"]}}},
       {displayName:"Draw Them",name:"kitAnglesConfirm",type:"boolean",default:false,
         description:"Whether to draw them now (spends credits); off, only the price is returned",displayOptions:{show:{operation:["drawPlaceAngles"]}}},
@@ -1177,7 +1153,7 @@ export class Kinetune implements INodeType {
       {displayName:"Kind",name:"draftType",type:"options",options:[{name:"Lyric Video",value:"lyric-video"},{name:"Canvas",value:"canvas"}],default:"lyric-video",
         description:"Which of the song's drafts",displayOptions:{show:{operation:["getVideoDraft","editVideoDraft"]}}},
       {displayName:"Changes (JSON)",name:"draftChanges",type:"json",default:"{\n  \"shuffle\": true\n}",required:true,
-        description:"What changes, as Change Video Draft takes it: shuffle, replace [{cut, clip_id}], joins [{cut, transition}], starts, sources {moods, folders}, density, transitions, grade, grade_amount, effects, shape, fill, speed, look_id, lyric_style, format, trim; a Canvas: picture, loop, seconds, cut, motion, light, atmosphere, frame",
+        description:"What changes, as Change Video Draft takes it: shuffle, replace [{cut, clip_id}], joins [{cut, transition}], starts, sources {moods, folders}, density, transitions, grade, grade_amount, effects, shape, fill, speed, lyric_style, format, trim; a Canvas: picture, loop, seconds, cut, motion, light, atmosphere, frame",
         displayOptions:{show:{operation:["editVideoDraft"]}}},
       {displayName:"Words",name:"songWords",type:"json",default:"[]",required:true,
         description: 'Every word of the song in order, as Get Song Analysis returns them (words), each {text, start, end} in seconds and line: true on the first word of a line. Saved as sent; videos made from then on use them.',
@@ -1194,6 +1170,31 @@ export class Kinetune implements INodeType {
       {displayName:"Cover From",name:"coverSource",type:"options",options:[{name:"Binary Property",value:"binary"},{name:"Link",value:"url"}],default:"binary",displayOptions:{show:{operation:["setSongCover"]}}},
       {displayName:"Cover Binary Property",name:"newCoverBinaryProperty",type:"string",default:"cover",required:true,description:"Square JPEG or PNG, 1000–6000 px, up to 20 MB",displayOptions:{show:{operation:["setSongCover"],coverSource:["binary"]}}},
       {displayName:"Cover URL",name:"coverUrl",type:"string",default:"",required:true,placeholder:"https://…",displayOptions:{show:{operation:["setSongCover"],coverSource:["url"]}}},
+      // Songs Kinetune makes: write lyrics, price, make, follow; an artist's Voice.
+      locator("Artist","songArtistId","searchArtists","an artist",{required:true,description:"The artist (or project) the song is for",displayOptions:{show:{operation:["writeSongLyrics","quoteNewSong","makeSong","getArtistVoice","setArtistVoice","deleteArtistVoice","getSongCreationDraft","saveSongCreationDraft","deleteSongCreationDraft"]}}}),
+      {displayName:"Draft",name:"songDraftForm",type:"json",default:"{}",required:true,description:"The Create a song fields: model, lyrics_source, idea, lyrics, title, style (a list), voice, length, takes, write_id; all optional",displayOptions:{show:{operation:["saveSongCreationDraft"]}}},
+      locator("Artist","songArtistFilter","searchArtists","an artist",{description:"Only this artist's; leave empty for all",displayOptions:{show:{operation:["listSongCreations"]}}}),
+      {displayName:"Idea",name:"songIdea",type:"string",typeOptions:{rows:2},default:"",required:true,placeholder:"Last train missed, dancing on the platform at midnight",displayOptions:{show:{operation:["writeSongLyrics"]}}},
+      {displayName:"Language",name:"songLanguage",type:"string",default:"",placeholder:"fr",description:"ISO 639-1 code; empty: the idea's language",displayOptions:{show:{operation:["writeSongLyrics"]}}},
+      {displayName:"Model",name:"songModel",type:"options",options:SONG_MODEL_OPTIONS,default:"mureka-v9-5",displayOptions:{show:{operation:["writeSongLyrics","quoteNewSong","makeSong"]}}},
+      {displayName:"Lyrics",name:"songLyricsSource",type:"options",options:[{name:"Mine",value:"mine"},{name:"Written by Kinetune (Write Song Lyrics)",value:"written"},{name:"None (Instrumental)",value:"none"}],default:"mine",displayOptions:{show:{operation:["quoteNewSong","makeSong"]}}},
+      {displayName:"Lyrics Text",name:"songLyrics",type:"string",typeOptions:{rows:8},default:"",description:"Sections in square brackets: [Verse], [Chorus]",displayOptions:{show:{operation:["quoteNewSong","makeSong"],songLyricsSource:["mine","written"]}}},
+      {displayName:"Director Picks the Style",name:"songPickStyle",type:"boolean",default:true,description:"Whether the style line it writes is meant to replace yours (Style is then only a reference)",displayOptions:{show:{operation:["writeSongLyrics"]}}},
+      {displayName:"Director Picks Female or Male",name:"songPickVoice",type:"boolean",default:true,description:"Whether it picks who sings, for a new voice (the answer's gender)",displayOptions:{show:{operation:["writeSongLyrics"]}}},
+      {displayName:"Style",name:"songStyle",type:"string",default:"",required:true,placeholder:"French pop, warm synths, 104 BPM",description:"Genre, mood, tempo, instruments; never another artist's name",displayOptions:{show:{operation:["quoteNewSong","makeSong","writeSongLyrics"]}}},
+      {displayName:"Title",name:"songTitle",type:"string",default:"",displayOptions:{show:{operation:["makeSong"]}}},
+      {displayName:"Voice",name:"songVoice",type:"options",options:[{name:"A New Voice",value:"new"},{name:"The Artist's Voice",value:"artist"}],default:"new",displayOptions:{show:{operation:["quoteNewSong","makeSong"]}}},
+      {displayName:"Gender",name:"songGender",type:"options",options:[{name:"Any",value:"any"},{name:"Female",value:"female"},{name:"Male",value:"male"}],default:"any",displayOptions:{show:{operation:["quoteNewSong","makeSong"],songVoice:["new"]}}},
+      {displayName:"Length (Seconds)",name:"songLength",type:"number",typeOptions:{minValue:0,numberPrecision:0},default:0,description:"0: Auto (the model follows the lyrics); else one of the model's lengths (120, 180, 240)",displayOptions:{show:{operation:["quoteNewSong","makeSong"]}}},
+      {displayName:"Takes",name:"songTakes",type:"number",typeOptions:{minValue:1,maxValue:4,numberPrecision:0},default:2,description:"Each take is a different song",displayOptions:{show:{operation:["quoteNewSong","makeSong"]}}},
+      {displayName:"Credits",name:"songCredits",type:"number",typeOptions:{minValue:0,numberPrecision:0},default:0,required:true,description:"The price shown (Price New Song for Make Song; get_options song.write_lyrics for Write Song Lyrics; Get Artist Voice for Set Up Artist Voice)",displayOptions:{show:{operation:["makeSong","writeSongLyrics","setArtistVoice"]}}},
+      {displayName:"Creation ID",name:"songCreationId",type:"string",default:"",required:true,placeholder:"songmake_…",displayOptions:{show:{operation:["getSongCreation"]}}},
+      {displayName:"Voice From",name:"voiceSource",type:"options",options:[{name:"One of Their Songs",value:"song"},{name:"A Take They Liked",value:"take"},{name:"A Recording of the Voice Alone",value:"upload"}],default:"song",displayOptions:{show:{operation:["setArtistVoice"]}}},
+      {displayName:"Song ID",name:"voiceSongId",type:"string",default:"",placeholder:"song_…",displayOptions:{show:{operation:["setArtistVoice"],voiceSource:["song","take"]}}},
+      {displayName:"Recording URL",name:"voiceUploadUrl",type:"string",default:"",placeholder:"https://…",description:"15 to 30 seconds of the voice alone",displayOptions:{show:{operation:["setArtistVoice"],voiceSource:["upload"]}}},
+      {displayName:"AI-Made Voice",name:"voiceAiMade",type:"boolean",default:false,description:"Whether this is an AI-made voice; a real person's needs their consent",displayOptions:{show:{operation:["setArtistVoice"]}}},
+      {displayName:"Consent Given",name:"voiceConsent",type:"boolean",default:false,description:"Whether the user confirms it is their own voice or they have the singer's written permission",displayOptions:{show:{operation:["setArtistVoice"],voiceAiMade:[false]}}},
+      {displayName:"Phrase Recording URL",name:"voicePhraseUrl",type:"string",default:"",placeholder:"https://…",description:"The singer saying the phrase Get Artist Voice gives",displayOptions:{show:{operation:["setArtistVoice"],voiceAiMade:[false]}}},
       // Cover art Kinetune makes: price, make, follow, redraw; then use or delete the song's covers.
       locator("Song","songId","searchReadySongs","a song",{required:true,description:"An analysed song (status ready); the list shows only those",displayOptions:{show:{operation:["makeCovers"]}}}),
       {displayName:"Covers",name:"coverCount",type:"number",typeOptions:{minValue:1,maxValue:4,numberPrecision:0},default:1,description:"How many covers, each a different idea (1 to 4)",displayOptions:{show:{operation:["quoteCovers","makeCovers"]}}},
@@ -1208,7 +1209,6 @@ export class Kinetune implements INodeType {
       {displayName:"Credits",name:"coverCredits",type:"number",typeOptions:{minValue:1,numberPrecision:0},default:0,required:true,
         description:"The price Price Covers shows (credits for Make Covers with the same count, redraw_credits for Redraw Cover); another price is refused with the current one",displayOptions:{show:{operation:["makeCovers","redrawCover"]}}},
     ],
-		usableAsTool: true,
   };
 
   methods={listSearch:{searchArtists,searchSongs,searchReadySongs}};
@@ -1216,7 +1216,7 @@ export class Kinetune implements INodeType {
   async execute(this:IExecuteFunctions):Promise<INodeExecutionData[][]>{
     const items=this.getInputData();const out:INodeExecutionData[]=[];
     // A required id for the request path (also from the artist and song pickers).
-    const LABELS:Record<string,string>={draftId:"Draft ID",clipId:"Clip ID",clipMoodId:"Collection ID",clipFolderId:"Folder ID",canvasPresetId:"Preset ID",fromLookId:"From Look ID",artistId:"Artist",analysisSongId:"Song",songId:"Song",coverRequestId:"Round ID",coverId:"Cover ID",videoId:"Video ID",lookId:"Look ID",planId:"Plan ID",kitId:"Kit Piece ID",castingId:"Casting ID"};
+    const LABELS:Record<string,string>={draftId:"Draft ID",clipId:"Clip ID",clipMoodId:"Collection ID",clipFolderId:"Folder ID",canvasPresetId:"Preset ID",artistId:"Artist",analysisSongId:"Song",songId:"Song",coverRequestId:"Round ID",coverId:"Cover ID",videoId:"Video ID",planId:"Plan ID",kitId:"Kit Piece ID",castingId:"Casting ID"};
     const required=(name:string,i:number)=>{
       const value=locatorValue(this,name,i);
       if(!value)throw new NodeOperationError(this.getNode(),(LABELS[name]??name)+" is required",{itemIndex:i});
@@ -1289,15 +1289,6 @@ export class Kinetune implements INodeType {
         }
         else if(operation==="cancel")result=await api.call(this,"POST","/api/v1/videos/"+id("videoId",i)+"/cancel");
         else if(operation==="retry")result=await api.call(this,"POST","/api/v1/videos/"+id("videoId",i)+"/retry");
-        else if(operation==="listLooks"){
-          const category=String(this.getNodeParameter("category",i,"")||"");
-          const lyricStyle=String(this.getNodeParameter("lookLyricStyle",i,"")||"");const artistId=locatorValue(this,"artistId",i);
-          result=await api.call(this,"GET","/api/v1/looks?limit=100&scope="+String(this.getNodeParameter("scope",i,"all"))+(category?"&category="+encodeURIComponent(category):"")
-            +(lyricStyle?"&lyric_style="+encodeURIComponent(lyricStyle):"")+(artistId?"&artist_id="+encodeURIComponent(artistId):""));
-        }
-        else if(operation==="getLook")result=await api.call(this,"GET","/api/v1/looks/"+id("lookId",i));
-        else if(operation==="getLookClips")result=await api.call(this,"GET","/api/v1/looks/"+id("lookId",i)+"/clips");
-        else if(operation==="setVisibility")result=await api.call(this,"POST","/api/v1/looks/"+id("lookId",i)+"/visibility",{visibility:String(this.getNodeParameter("visibility",i))});
         else if(operation==="options")result=await api.call(this,"GET","/api/v1/options");
         else if(operation==="listArtists")result=await api.call(this,"GET","/api/v1/artists"+listQuery(i));
         else if(operation==="createArtist")result=await api.call(this,"POST","/api/v1/artists",{name:String(this.getNodeParameter("artistName",i))});
@@ -1363,8 +1354,6 @@ export class Kinetune implements INodeType {
             ...(this.getNodeParameter("shareRightsConfirmed",i,false)?{rights_confirmed:true}:{})});
         }
         else if(operation==="unshareVideo")result=await api.call(this,"DELETE","/api/v1/videos/"+id("videoId",i)+"/share");
-        else if(operation==="renameLook")result=await api.call(this,"PATCH","/api/v1/looks/"+id("lookId",i),{name:String(this.getNodeParameter("newName",i))});
-        else if(operation==="deleteLook"){await api.call(this,"DELETE","/api/v1/looks/"+id("lookId",i));result={deleted:true};}
         else if(operation==="getArtist")result=await api.call(this,"GET","/api/v1/artists/"+id("artistId",i));
         else if(operation==="renameArtist")result=await api.call(this,"PATCH","/api/v1/artists/"+id("artistId",i),{name:String(this.getNodeParameter("newName",i))});
         else if(operation==="findArtistInCatalog")result=await api.call(this,"GET","/api/v1/catalog/artists?q="+encodeURIComponent(String(this.getNodeParameter("catalogQuery",i)).trim()));
@@ -1410,6 +1399,39 @@ export class Kinetune implements INodeType {
             form.set("cover_art",new Blob([new Uint8Array(await this.helpers.getBinaryDataBuffer(i,property))],{type:cover.mimeType||"image/jpeg"}),cover.fileName||"cover.jpg");
             result=await this.helpers.httpRequestWithAuthentication.call(this,"kinetuneApi",{method:"POST",url:await baseUrl(this)+path,body:form});
           }
+        }
+        else if(operation==="writeSongLyrics"){
+          const language=String(this.getNodeParameter("songLanguage",i,"")||"").trim().toLowerCase();const style=String(this.getNodeParameter("songStyle",i,"")||"").trim();
+          result=await api.call(this,"POST","/api/v1/song-lyrics",{artist_id:locatorValue(this,"songArtistId",i),idea:String(this.getNodeParameter("songIdea",i,"")).trim(),
+            ...(language?{language}:{}),...(style?{style}:{}),model:String(this.getNodeParameter("songModel",i,"mureka-v9-5")),
+            pick:{style:Boolean(this.getNodeParameter("songPickStyle",i,true)),voice:Boolean(this.getNodeParameter("songPickVoice",i,true))},credits:Number(this.getNodeParameter("songCredits",i,0))});
+        }
+        else if(operation==="quoteNewSong"||operation==="makeSong"){
+          const source=String(this.getNodeParameter("songLyricsSource",i,"mine")),length=Math.trunc(Number(this.getNodeParameter("songLength",i,0))||0);
+          const voice=String(this.getNodeParameter("songVoice",i,"new")),title=operation==="makeSong"?String(this.getNodeParameter("songTitle",i,"")||"").trim():"";
+          const body={artist_id:locatorValue(this,"songArtistId",i),model:String(this.getNodeParameter("songModel",i,"mureka-v9-5")),
+            lyrics:source==="none"?{source}:{source,text:String(this.getNodeParameter("songLyrics",i,"")||"")},style:String(this.getNodeParameter("songStyle",i,"")).trim(),
+            voice:voice==="artist"?{use:"artist"}:{use:"new",gender:String(this.getNodeParameter("songGender",i,"any"))},length:length>0?length:"auto",
+            takes:Math.trunc(Number(this.getNodeParameter("songTakes",i,2))||2),...(title?{title}:{})};
+          result=operation==="quoteNewSong"?await api.call(this,"POST","/api/v1/song-creations/quote",body)
+            :await api.call(this,"POST","/api/v1/song-creations",{...body,credits:Number(this.getNodeParameter("songCredits",i,0))});
+        }
+        else if(operation==="getSongCreation")result=await api.call(this,"GET","/api/v1/song-creations/"+id("songCreationId",i));
+        else if(operation==="listSongCreations"){const artist=locatorValue(this,"songArtistFilter",i);result=await api.call(this,"GET","/api/v1/song-creations"+(artist?"?artist_id="+encodeURIComponent(artist):""));}
+        else if(operation==="getArtistVoice")result=await api.call(this,"GET","/api/v1/artists/"+encodeURIComponent(locatorValue(this,"songArtistId",i))+"/voice");
+        else if(operation==="getSongCreationDraft")result=await api.call(this,"GET","/api/v1/artists/"+encodeURIComponent(locatorValue(this,"songArtistId",i))+"/song-draft");
+        else if(operation==="deleteSongCreationDraft")result=await api.call(this,"DELETE","/api/v1/artists/"+encodeURIComponent(locatorValue(this,"songArtistId",i))+"/song-draft");
+        else if(operation==="saveSongCreationDraft"){
+          const raw=this.getNodeParameter("songDraftForm",i,"{}");const form=typeof raw==="string"?JSON.parse(raw||"{}"):raw;
+          result=await api.call(this,"PATCH","/api/v1/artists/"+encodeURIComponent(locatorValue(this,"songArtistId",i))+"/song-draft",{form});
+        }
+        else if(operation==="deleteArtistVoice")result=await api.call(this,"DELETE","/api/v1/artists/"+encodeURIComponent(locatorValue(this,"songArtistId",i))+"/voice");
+        else if(operation==="setArtistVoice"){
+          const source=String(this.getNodeParameter("voiceSource",i,"song")),aiMade=Boolean(this.getNodeParameter("voiceAiMade",i,false));
+          const songId=source==="upload"?"":String(this.getNodeParameter("voiceSongId",i,"")||"").trim(),upload=source==="upload"?String(this.getNodeParameter("voiceUploadUrl",i,"")||"").trim():"";
+          const phrase=aiMade?"":String(this.getNodeParameter("voicePhraseUrl",i,"")||"").trim();
+          result=await api.call(this,"POST","/api/v1/artists/"+encodeURIComponent(locatorValue(this,"songArtistId",i))+"/voice",{source,ai_made:aiMade,credits:Number(this.getNodeParameter("songCredits",i,0)),
+            ...(songId?{song_id:songId}:{}),...(upload?{upload_url:upload}:{}),...(aiMade?{}:{consent:{confirmed:Boolean(this.getNodeParameter("voiceConsent",i,false)),...(phrase?{phrase_url:phrase}:{})}})});
         }
         else if(operation==="quoteCovers")result=await api.call(this,"GET","/api/v1/cover-requests/quote?count="+Math.trunc(Number(this.getNodeParameter("coverCount",i,1))||1));
         else if(operation==="makeCovers"){
@@ -1572,11 +1594,10 @@ export class Kinetune implements INodeType {
             result=await api.call(this,"GET","/api/v1/handles/"+encodeURIComponent(handle)+(artist?"?artist_id="+encodeURIComponent(artist):""));
           }
         }
-        else if(operation==="saveLook")result=await api.call(this,"POST","/api/v1/looks",{name:String(this.getNodeParameter("lookName",i)).trim(),from_id:required("fromLookId",i),...lookChanges(this,i)});
         else if(operation==="getSongDraft")result=await api.call(this,"GET","/api/v1/songs/"+id("analysisSongId",i)+"/draft");
         else if(operation==="listClips"){
           const query=new URLSearchParams();
-          for(const [key,name] of [["moods","clipMoods"],["folders","clipFolders"],["looks","clipLooks"]] as const){const list=commaList(this.getNodeParameter(name,i,""));if(list.length)query.set(key,list.join(","));}
+          for(const [key,name] of [["moods","clipMoods"],["folders","clipFolders"]] as const){const list=commaList(this.getNodeParameter(name,i,""));if(list.length)query.set(key,list.join(","));}
           const qs=query.toString();result=await api.call(this,"GET","/api/v1/clips"+(qs?"?"+qs:""));
         }
         else if(operation==="generateClips"){
