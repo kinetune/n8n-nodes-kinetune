@@ -63,6 +63,10 @@ A lyric video for each new song:
 
 Source: https://github.com/kinetune/n8n-nodes-kinetune
 
+## 6.0.4
+
+Source formatted with the n8n starter's Prettier config (no change in behaviour).
+
 ## 6.0.3
 
 Built for ES2019, as n8n's starter (no change in behaviour).
