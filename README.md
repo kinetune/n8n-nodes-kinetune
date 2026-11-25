@@ -63,6 +63,10 @@ A lyric video for each new song:
 
 Source: https://github.com/kinetune/n8n-nodes-kinetune
 
+## 6.0.1
+
+The credential test is declared as n8n's starter does it (no change in behaviour).
+
 ## 6.0.0
 
 Operations are grouped by **Resource** (node version 2; version 1 workflows keep the flat Operation list). Breaking: a lyric video is made from its song's draft, changed with Lyric Style, Visual and Picture. Saved lyric video designs are gone, with the fields and operations that used them: Look ID, Clip Looks, List Looks, Get Look, Get Look Clips, Rename Look, Delete Look, Set Look Visibility and Save as Look. A music video's Outro Look ID became **Outro Card**, and Headline's default value is now `default`. Music video concepts (Save, List, Get and Delete Music Video Look) stay. Saved workflows that used the removed fields need those steps set again.
