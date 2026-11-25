@@ -1,21 +1,44 @@
-# @kinetune/n8n-nodes-kinetune
+<a href="https://kinetune.com/developers/n8n?utm_source=github&utm_medium=readme&utm_campaign=n8n"><img src="https://kinetune.com/og/developers.jpg" alt="Kinetune for n8n: every video, from your workflows" width="100%"></a>
 
-The [Kinetune](https://kinetune.com) community node for n8n: lyric videos, Spotify Canvas loops and AI music videos from your songs, as workflow steps. It covers the same operations as the Kinetune app and API.
+# Kinetune for n8n
 
-Full docs: https://kinetune.com/developers#n8n
+[![npm](https://img.shields.io/npm/v/@kinetune/n8n-nodes-kinetune?color=f2cf2e&labelColor=16161d&logo=npm)](https://www.npmjs.com/package/@kinetune/n8n-nodes-kinetune)
+[![npm downloads](https://img.shields.io/npm/dm/@kinetune/n8n-nodes-kinetune?color=f2cf2e&labelColor=16161d)](https://www.npmjs.com/package/@kinetune/n8n-nodes-kinetune)
+[![License: MIT](https://img.shields.io/badge/license-MIT-f2cf2e?labelColor=16161d)](https://github.com/kinetune/n8n-nodes-kinetune/blob/main/LICENSE.md)
+
+The [Kinetune](https://kinetune.com/?utm_source=github&utm_medium=readme&utm_campaign=n8n) node for [n8n](https://n8n.io): put music videos, lyric videos, Spotify Canvas loops, cover art and AI songs into your workflows. Every operation of the Kinetune app is here, and the node works as a tool for n8n's AI Agent too.
+
+**Ideas for workflows**
+
+- A new song lands in a Drive folder: upload it, make a 9:16 lyric video and a Spotify Canvas, and post them to your socials.
+- A label's release calendar: on release day, make each single's lyric video, cover art and music video, and email the artist the links.
+- An AI agent in Slack or Telegram that answers *"make a Canvas for my new single"* by quoting the credits and waiting for a yes.
+- Write lyrics from an idea, make two takes of the song with AI, then make a video for the take you keep.
+
+Paid operations take the exact credits from a quote first, so a workflow never spends more than you saw.
 
 ## Install
 
-In a self-hosted n8n: **Settings → Community nodes → Install**, enter `@kinetune/n8n-nodes-kinetune`.
+In n8n: **Settings → Community nodes → Install**, and enter `@kinetune/n8n-nodes-kinetune`.
 
 ## Credentials
 
 Create a **Kinetune API** credential:
 
-- **API Key**: a workspace API key (`kt_live_…`) from the API page in the Kinetune app.
+- **API Key**: a workspace API key (`kt_live_…`) from the API page in the [Kinetune app](https://kinetune.com/?utm_source=github&utm_medium=readme&utm_campaign=n8n).
 - **API Base URL**: `https://kinetune.com` (the default).
 
-## Operations
+n8n tests it by reading your account, so you know right away the key works.
+
+## Make a lyric video for each new song
+
+1. **Kinetune → Song → Create Song** with the audio from a binary property (or **Song Import → Import Songs** from a release link).
+2. **Kinetune → Song → Get Song** until `status` is `ready` (a Wait node between tries), or start from songs already analyzed.
+3. **Kinetune → Video → Quote Video**: Video Type Lyric Video, the song, the formats. It returns the credits and a `quote_id`.
+4. **Kinetune → Video → Create Video** with the same fields and the quote. It returns the video ids at once.
+5. **Kinetune → Video → Get Video** with its id until `status` is `completed` (a Wait node between tries): the video holds its download links.
+
+## Every operation
 
 Pick a **Resource** (Account, Artist, Artist Page, Character, Clip, Clip Folder, Cover, Idea, Kit, Look, Music Video Shot List, Song, Song Creation, Song Import, Video), then its **Operation**. Workflows made with version 1 of the node keep their single Operation list.
 
@@ -24,6 +47,8 @@ Pick a **Resource** (Account, Artist, Artist Page, Character, Clip, Clip Folder,
 - **Artists**: list (search by name, limit and offset), create, get, rename, archive; set or remove the artist image (their picture on the artist page and in lists, uploaded from a binary property or a link, with an optional square crop); characters (list, start from photos or a finished sheet, draw, keep, discard); face checks (get, start, withdraw, for a model: some models show a real person only once they proved, live on camera, that the face is theirs; one check covers every model that shares it). The artist photo operations and Set Artist Picture were removed in 2.0.0: every video keeps the artist from their character
 - **Artist pages**: claim or change the page's address (`kinetune.com/@handle`; **Check Page Address** first, and **Take From My Profile** moves your own username there), get the page (address, status and draft), update the draft (theme, genres and place as fields, any other draft field such as `sections` as JSON; `sections` replaces the whole list), preview it as fans will see it, publish it (owners and admins; only on the user's say-so) or unpublish it (everything is kept), and get its stats (views, visitors, clicks and click rate by day, service, link and referrer). Profiles: list the artist's links on other services (in page order, with the automatic search's state), add one (the service is recognised from the address), order, update (confirm, hide, show, retitle or correct), remove, and find them again (in the background, from the Apple Music connection). Profiles found automatically stay unconfirmed until the user says they are theirs
 - **Songs**: list (by artist, search by title or artist name, analysis status, sort by title or newest, limit and offset), upload (audio, square cover art if you have it, and the song's lyrics if you have them; in an artist workspace the artist can be left empty), get, rename, change the cover art (a binary property or a link; videos already made keep theirs, and the old cover stays on the song), get the download links of the cover (full size) and the audio (as uploaded), archive, get the analysis, analyze again, set or remove the song's lyrics (text, or an SRT, WebVTT or LRC file's contents: videos spell every word your way, timed from the audio)
+- **Song creation**: write lyrics from an idea (in the artist's world, sized for the model), price a new song, make 1 to 4 takes with Mureka, Lyria, Eleven Music or MiniMax (from your lyrics, the written ones or an instrumental, in a new voice or the artist's own), get a creation and its takes, list them, and keep or clear the Create a song draft. **Artist Voice**: get, set (15 to 30 seconds of the voice, with the singer's consent) or delete it
+- **Song import**: bring in released songs from the catalog by id (Kinetune fetches the audio and uses each release's cover), follow each import, or give the audio for one it couldn't fetch
 - **Covers**: price a round (1 to 4 covers, and a redraw), make covers (Kinetune's cover art director makes each a different idea for an analysed song: a style or Kinetune's pick, up to two vibes, the artist on it or not, your idea, and words spelled exactly as the song; send the **Credits** Price Covers shows; needs a paid plan), get a round (covers appear as they are drawn, in about a minute; only covers that pass their check are charged), redraw one with a note, list a song's covers (every cover it has had, made or uploaded, kept until deleted), use one (videos already made keep theirs) or delete one
 - **Clips**: **Get Song Draft** (the lyric style and clips picture Kinetune picks for a song, at once and without AI); search stock photos and clips (a video to import into one of your folders, or one of a Canvas's **Pexels Video IDs**); list the clips of Stock collections and your folders (length, shape, motion and a preview); **Browse Collection** looks inside one Stock collection (Feelings, Places & textures or Seasons & holidays) a page at a time, by Shape, Energy and Sort; **Similar Clips** finds clips from Stock and your folders that look and move like one clip (no AI, no credits); generate pictures or short clips into your AI folder from a few words, or with **Idea From** the song or its cover, **With** the artist or a cast character, as a video by the **Video Model** you name (its id from Get Options, `video_models.clips`; empty: the default), **Made to Loop** for a Canvas (Credits 0 returns the price; the price shown makes them); **Retry Clip Import** or **Dismiss Clip Import** for one that failed; **Clip as Rebound** plays a clip forward, then backward, as a Canvas Rebound loops it; delete one of your clips; list, create, get, rename and delete clip folders; **Import Clips** cuts a video into clips of 1 to 5 seconds at every scene change, from a YouTube, TikTok or Instagram link, a file URL (Create Upload URL) or a stock video (Search Stock), free
 - **Videos**: plan a music video and get a plan; list a plan's opening frames and draw one for a shot (the picture it opens on, paid per picture at the price shown); quote, create, get, list (by song, artist, type or a search over song, artist and music video concept; a page at a time: pass the result's `next_cursor` as **Cursor** for the next page, `counts` says how many match), cancel, retry, delete (lyric videos, Canvases and music videos); make a delivered video public in the Community (a music video's concept reusable by anyone; tick **I Have the Right to Show the People in It Publicly** for a music video and **Kinetune May Post It on Its Socials** only when the person said so) or private again. While a video waits, get and list return `queue`: why (`plan_limit`, with its place in line, or `render_capacity`, with about how long; `generator_capacity` for a music video waiting for a free generator)
@@ -51,37 +76,35 @@ After delivery, while `revisable_until` (Get Video) is ahead: **Price Music Vide
 
 Uploading and making videos need an active plan: without one, those operations fail with `plan_required` (choose a plan in the app). They also need room in the plan's storage (Get Account: `storage`): `storage_full` means delete videos or archive songs you no longer need, or move up a plan. Creating a video spends credits. Quote it first: the quote is the exact number of credits, and creating with that quote id charges only when the video is delivered. To continue a workflow when a video is ready, set its callback URL to an n8n Webhook node; deliveries are signed with the `Kinetune-Signature` header.
 
-## Example workflow
+## Changelog
 
-A lyric video for each new song:
-
-1. **Kinetune → Song → Create Song** with the audio from a binary property (or **Song Import → Import Songs** from a release link).
-2. **Kinetune → Song → Get Song** until `status` is `ready` (a Wait node between tries), or start from songs already analyzed.
-3. **Kinetune → Video → Quote Video**: Video Type Lyric Video, the song, the formats. It returns the credits and a `quote_id`.
-4. **Kinetune → Video → Create Video** with the same fields and the quote. It returns the video ids at once.
-5. **Kinetune → Video → Get Video** with its id until `status` is `completed` (a Wait node between tries): the video holds its download links.
-
-Source: https://github.com/kinetune/n8n-nodes-kinetune
-
-## 6.0.4
+### 6.0.4
 
 Source formatted with the n8n starter's Prettier config (no change in behaviour).
 
-## 6.0.3
+### 6.0.3
 
 Built for ES2019, as n8n's starter (no change in behaviour).
 
-## 6.0.2
+### 6.0.2
 
 The icon is the full yellow K tile, without its border.
 
-## 6.0.1
+### 6.0.1
 
 The credential test is declared as n8n's starter does it (no change in behaviour).
 
-## 6.0.0
+### 6.0.0
 
 Operations are grouped by **Resource** (node version 2; version 1 workflows keep the flat Operation list). Breaking: a lyric video is made from its song's draft, changed with Lyric Style, Visual and Picture. Saved lyric video designs are gone, with the fields and operations that used them: Look ID, Clip Looks, List Looks, Get Look, Get Look Clips, Rename Look, Delete Look, Set Look Visibility and Save as Look. A music video's Outro Look ID became **Outro Card**, and Headline's default value is now `default`. Music video concepts (Save, List, Get and Delete Music Video Look) stay. Saved workflows that used the removed fields need those steps set again.
+
+## More from Kinetune
+
+- [Docs for this node](https://kinetune.com/developers/n8n?utm_source=github&utm_medium=readme&utm_campaign=n8n), the [REST API](https://kinetune.com/developers/rest?utm_source=github&utm_medium=readme&utm_campaign=n8n) and [pricing](https://kinetune.com/pricing?utm_source=github&utm_medium=readme&utm_campaign=n8n)
+- [kinetune/cli](https://github.com/kinetune/cli): the same operations from the terminal
+- [kinetune/skills](https://github.com/kinetune/skills): the Kinetune skill for Claude Code, Codex and Cursor, and the MCP server
+- The Kinetune app on the [web](https://kinetune.com/?utm_source=github&utm_medium=readme&utm_campaign=n8n), [iPhone](https://apps.apple.com/app/id6821154371) and [Android](https://play.google.com/store/apps/details?id=com.kinetune.app)
+- Questions or bugs: [open an issue](https://github.com/kinetune/n8n-nodes-kinetune/issues) or write to support@kinetune.com
 
 ## License
 
