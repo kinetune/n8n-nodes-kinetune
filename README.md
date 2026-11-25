@@ -63,6 +63,10 @@ A lyric video for each new song:
 
 Source: https://github.com/kinetune/n8n-nodes-kinetune
 
+## 6.0.2
+
+The icon is the full yellow K tile, without its border.
+
 ## 6.0.1
 
 The credential test is declared as n8n's starter does it (no change in behaviour).

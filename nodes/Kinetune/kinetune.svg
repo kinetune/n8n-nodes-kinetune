@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kinetune">
 <title>Kinetune</title>
-<rect x="15.36" y="15.36" width="481.28" height="481.28" rx="17.92" fill="#f2cf2e" stroke="#16161d" stroke-width="30.72"/>
-<path transform="translate(89.86 384.00)" fill="#16161d" d="M109.77-146.60L200.93-256L302.88-256L210.98-150.70L304.74 0L207.63 0L154.42-93.77L109.77-57.30L109.77 0L27.53 0L27.53-256L109.77-256"/>
+<rect width="512" height="512" rx="96" fill="#f2cf2e"/>
+<path fill="#16161d" d="M199.63 237.4L290.79 128L392.74 128L300.84 233.3L394.6 384L297.49 384L244.28 290.23L199.63 326.7L199.63 384L117.4 384L117.4 128L199.63 128L199.63 237.4"/>
 </svg>
