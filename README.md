@@ -63,6 +63,10 @@ A lyric video for each new song:
 
 Source: https://github.com/kinetune/n8n-nodes-kinetune
 
+## 6.0.3
+
+Built for ES2019, as n8n's starter (no change in behaviour).
+
 ## 6.0.2
 
 The icon is the full yellow K tile, without its border.

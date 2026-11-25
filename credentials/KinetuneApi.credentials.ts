@@ -1,7 +1,7 @@
 import type {IAuthenticateGeneric,Icon,ICredentialTestRequest,ICredentialType,INodeProperties} from "n8n-workflow";
 
 /** Kept to the package version (a test checks it). */
-export const USER_AGENT="n8n-nodes-kinetune/6.0.2";
+export const USER_AGENT="n8n-nodes-kinetune/6.0.3";
 
 export class KinetuneApi implements ICredentialType {
   name="kinetuneApi";
