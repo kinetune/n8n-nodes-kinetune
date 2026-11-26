@@ -719,6 +719,7 @@ const commaList = (value: unknown) =>
 function lyricLook(ctx: IExecuteFunctions, index: number) {
 	const lyricStyle = String(ctx.getNodeParameter('lyricStyle', index, '') || '');
 	const behind = String(ctx.getNodeParameter('behind', index, '') || '');
+	const colours = String(ctx.getNodeParameter('colours', index, '') || '');
 	const visual = String(ctx.getNodeParameter('visual', index, '') || '').trim();
 	// 0: the visual's own level over clips.
 	const strength = Number(ctx.getNodeParameter('visualStrength', index, 0) || 0);
@@ -751,6 +752,7 @@ function lyricLook(ctx: IExecuteFunctions, index: number) {
 	}
 	return {
 		...(lyricStyle ? { lyric_style: lyricStyle } : {}),
+		...(colours ? { colours } : {}),
 		...(behind ? { behind: behind === 'on' } : {}),
 		...(visual
 			? {
@@ -795,6 +797,8 @@ function generationRequest(ctx: IExecuteFunctions, index: number) {
 			lyrics: Boolean(ctx.getNodeParameter('showLyrics', index, true)),
 			badges: Boolean(ctx.getNodeParameter('showBadges', index, true)),
 			...(headline !== 'default' ? { headline } : {}),
+			...(ctx.getNodeParameter('showClips', index, true) === false ? { clips: false } : {}),
+			...(ctx.getNodeParameter('playSong', index, true) === false ? { song: false } : {}),
 			...(titleCard !== 'auto' ? { title_card: titleCard } : {}),
 			...scaleField('cover_scale', Number(ctx.getNodeParameter('coverSize', index, 100))),
 			...scaleField('text_scale', Number(ctx.getNodeParameter('textSize', index, 100))),
@@ -994,6 +998,19 @@ export const OPERATION_IDS: Record<string, string[]> = {
 
 // How a lyric video looks: lyric style, visual and picture (the song's draft's, clips or a visualizer); each left out is the song's draft's.
 const clips = { picture: ['clips'] };
+// A lyric video's colours apart from its lyric style (the API's look.colours; GET /options colours lists the sets).
+const COLOURS: [string, string][] = [
+	['Midnight', 'midnight'],
+	['Ember', 'ember'],
+	['Neon', 'neon'],
+	['Rose', 'rose'],
+	['Forest', 'forest'],
+	['Gold', 'gold'],
+	['Ocean', 'ocean'],
+	['Violet', 'violet'],
+	['Canary', 'canary'],
+	['Black and White', 'mono'],
+];
 const lyricFields: INodeProperties[] = [
 	{
 		displayName: 'Lyric Style',
@@ -1010,6 +1027,28 @@ const lyricFields: INodeProperties[] = [
 		default: '',
 		description:
 			"How the lyrics are presented and animated, with the style's own colours and type, at no extra cost",
+	},
+	{
+		displayName: 'Colours',
+		name: 'colours',
+		type: 'options',
+		default: '',
+		options: [
+			{
+				name: "The Song's Draft",
+				value: '',
+				description: "The lyric style's own colours, as before",
+			},
+			{ name: "The Style's Own", value: 'style' },
+			{
+				name: 'From the Cover',
+				value: 'cover',
+				description: "The song's cover's colours (the style's own without a cover)",
+			},
+			...COLOURS.map(([name, value]) => ({ name, value })),
+		],
+		description:
+			"The video's colours apart from its lyric style: any colours suit any style. Free.",
 	},
 	{
 		displayName: 'Words Behind the Subject',
@@ -1238,6 +1277,21 @@ const lyricFields: INodeProperties[] = [
 	{ displayName: 'Show Cover Art', name: 'showCover', type: 'boolean', default: true },
 	{ displayName: 'Show Lyrics', name: 'showLyrics', type: 'boolean', default: true },
 	{ displayName: 'Show Streaming Badges', name: 'showBadges', type: 'boolean', default: true },
+	{
+		displayName: 'Show Clips',
+		name: 'showClips',
+		type: 'boolean',
+		default: true,
+		description:
+			"Whether the clips show (off: the video's ground in its colours, with its visual if it has one)",
+	},
+	{
+		displayName: 'Play the Song',
+		name: 'playSong',
+		type: 'boolean',
+		default: true,
+		description: 'Whether the song plays in the video (off: a silent video)',
+	},
 	{
 		displayName: 'Cover Size (%)',
 		name: 'coverSize',
@@ -5685,6 +5739,15 @@ export class Kinetune implements INodeType {
 				displayOptions: { show: { operation: ['transcribeSong'] } },
 			},
 			{
+				displayName: 'It Has Vocals',
+				name: 'transcribeVocals',
+				type: 'boolean',
+				default: false,
+				description:
+					'Whether the song has vocals although the analysis heard none: it is listened to for its words (nothing is charged if none are heard)',
+				displayOptions: { show: { operation: ['transcribeSong'] } },
+			},
+			{
 				displayName: 'Kind',
 				name: 'draftType',
 				type: 'options',
@@ -5733,7 +5796,7 @@ export class Kinetune implements INodeType {
 				type: 'options',
 				default: '',
 				description:
-					'Deprecated: the analysis hears whether a song has vocals. Yes still skips transcription (no words, no lip-sync). Stops working on 2027-04-30.',
+					'Deprecated: the analysis hears whether a song has vocals (when it missed them, Transcribe Song Again with It Has Vocals finds the words). Yes still skips transcription (no words, no lip-sync). Stops working on 2027-04-30.',
 				options: [
 					{ name: 'As Is', value: '' },
 					{ name: 'Yes, Instrumental', value: 'true' },
@@ -7018,9 +7081,14 @@ export class Kinetune implements INodeType {
 					const path = '/api/v1/songs/' + id('analysisSongId', i) + '/transcription';
 					const credits = Number(this.getNodeParameter('transcribeCredits', i, 0)),
 						language = String(this.getNodeParameter('transcribeLanguage', i, '') || '').trim();
+					const vocals = Boolean(this.getNodeParameter('transcribeVocals', i, false));
 					result =
 						credits > 0
-							? await api.call(this, 'POST', path, { credits, ...(language ? { language } : {}) })
+							? await api.call(this, 'POST', path, {
+									credits,
+									...(language ? { language } : {}),
+									...(vocals ? { vocals: true } : {}),
+								})
 							: { ...((await api.call(this, 'GET', path)) as Json), transcribed: false };
 				} else if (operation === 'setSongWords') {
 					const raw = this.getNodeParameter('songWords', i, '[]');
