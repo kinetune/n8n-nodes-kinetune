@@ -720,6 +720,8 @@ function lyricLook(ctx: IExecuteFunctions, index: number) {
 	const lyricStyle = String(ctx.getNodeParameter('lyricStyle', index, '') || '');
 	const behind = String(ctx.getNodeParameter('behind', index, '') || '');
 	const visual = String(ctx.getNodeParameter('visual', index, '') || '').trim();
+	// 0: the visual's own level over clips.
+	const strength = Number(ctx.getNodeParameter('visualStrength', index, 0) || 0);
 	const picture = String(ctx.getNodeParameter('picture', index, '') || '');
 	let background: Json | undefined;
 	if (picture === 'visualizer') background = { kind: 'visualizer' };
@@ -750,7 +752,16 @@ function lyricLook(ctx: IExecuteFunctions, index: number) {
 	return {
 		...(lyricStyle ? { lyric_style: lyricStyle } : {}),
 		...(behind ? { behind: behind === 'on' } : {}),
-		...(visual ? { visual: { preset: visual } } : {}),
+		...(visual
+			? {
+					visual: {
+						preset: visual,
+						...(strength > 0 && visual !== 'none'
+							? { strength: Math.min(1, Math.max(0.1, strength)) }
+							: {}),
+					},
+				}
+			: {}),
 		...(background ? { background } : {}),
 	};
 }
@@ -1025,6 +1036,15 @@ const lyricFields: INodeProperties[] = [
 		placeholder: 'liquid/amber-aurora',
 		description:
 			"The visual that moves with the music, for the whole song: a key from Get Options (visualizers.presets), or none for no visual. Empty: the song's draft's.",
+	},
+	{
+		displayName: 'Visual Strength',
+		name: 'visualStrength',
+		type: 'number',
+		default: 0,
+		typeOptions: { minValue: 0, maxValue: 1, numberPrecision: 2 },
+		description:
+			"How strongly the visual shows over clips, 0.1 to 1. 0: the visual's own level. The Visualizer picture always plays it at full strength.",
 	},
 	{
 		displayName: 'Picture',

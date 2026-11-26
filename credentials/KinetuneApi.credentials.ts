@@ -7,7 +7,7 @@ import type {
 } from 'n8n-workflow';
 
 /** Kept to the package version (a test checks it). */
-export const USER_AGENT = 'n8n-nodes-kinetune/6.0.4';
+export const USER_AGENT = 'n8n-nodes-kinetune/6.1.0';
 
 export class KinetuneApi implements ICredentialType {
 	name = 'kinetuneApi';
