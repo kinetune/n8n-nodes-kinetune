@@ -1,6 +1,6 @@
 {
   "name": "@kinetune/n8n-nodes-kinetune",
-  "version": "6.2.0",
+  "version": "6.4.0",
   "description": "n8n community node for Kinetune: lyric videos, Spotify Canvas loops and AI music videos from your songs",
   "license": "MIT",
   "author": {

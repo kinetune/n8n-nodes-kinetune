@@ -3855,6 +3855,11 @@ export class Kinetune implements INodeType {
 				description: "Only this song's videos; leave empty for all",
 				displayOptions: { show: { operation: ['listVideos'] } },
 			}),
+			locator('Except Song', 'listExceptSongId', 'searchSongs', 'a song', {
+				description:
+					"Every song's videos but this one's (a lyric video's music videos of other songs); leave empty for all",
+				displayOptions: { show: { operation: ['listVideos'] } },
+			}),
 			{
 				displayName: 'Type',
 				name: 'listType',
@@ -3879,6 +3884,31 @@ export class Kinetune implements INodeType {
 				default: '',
 				placeholder: 'Song, artist or Look',
 				description: 'Only videos whose song title, artist name, Look name or ID contains this',
+				displayOptions: { show: { operation: ['listVideos'] } },
+			},
+			{
+				displayName: 'Status',
+				name: 'listStatus',
+				type: 'options',
+				options: [
+					{ name: 'Any', value: '' },
+					{ name: 'Delivered', value: 'completed' },
+					{ name: 'Queued', value: 'queued' },
+					{ name: 'In Production', value: 'processing' },
+					{ name: 'Failed', value: 'failed' },
+					{ name: 'Cancelled', value: 'cancelled' },
+				],
+				default: '',
+				displayOptions: { show: { operation: ['listVideos'] } },
+			},
+			{
+				displayName: 'In Clip Folder',
+				name: 'listInFolder',
+				type: 'string',
+				default: '',
+				placeholder: 'folder_…',
+				description:
+					'A clip folder ID: each music video says In Folder, whether it is already cut into it (Import Clips: Your Music Video)',
 				displayOptions: { show: { operation: ['listVideos'] } },
 			},
 			{
@@ -4779,6 +4809,12 @@ export class Kinetune implements INodeType {
 						value: 'stock',
 						description: 'A video from Search Stock (Kind: Video)',
 					},
+					{
+						name: 'Your Music Video',
+						value: 'musicVideo',
+						description:
+							'One of your delivered music videos, cut at its shots (its end card left out)',
+					},
 				],
 				default: 'url',
 				description: 'Only clips you have the rights to. Free; counts toward your storage.',
@@ -4810,6 +4846,15 @@ export class Kinetune implements INodeType {
 				required: true,
 				placeholder: '3571264',
 				displayOptions: { show: { operation: ['importClips'], clipImportSource: ['stock'] } },
+			},
+			{
+				displayName: 'Music Video ID',
+				name: 'clipImportVideoId',
+				type: 'string',
+				default: '',
+				required: true,
+				description: 'A delivered music video (List Videos: Type Music Video, Status Delivered)',
+				displayOptions: { show: { operation: ['importClips'], clipImportSource: ['musicVideo'] } },
 			},
 			{
 				displayName: 'Kind',
@@ -6443,11 +6488,17 @@ export class Kinetune implements INodeType {
 						limit: String(this.getNodeParameter('listLimit', i, 50)),
 					});
 					const songId = locatorValue(this, 'listSongId', i);
+					const exceptSongId = locatorValue(this, 'listExceptSongId', i);
+					if (exceptSongId) query.set('except_song_id', exceptSongId);
 					const artistId = locatorValue(this, 'listArtistId', i);
 					const type = String(this.getNodeParameter('listType', i, '') || '');
 					const q = String(this.getNodeParameter('search', i, '') || '').trim();
 					const cursor = String(this.getNodeParameter('listCursor', i, '') || '').trim();
 					const quoteId = String(this.getNodeParameter('listQuoteId', i, '') || '').trim();
+					const status = String(this.getNodeParameter('listStatus', i, '') || '');
+					const inFolder = String(this.getNodeParameter('listInFolder', i, '') || '').trim();
+					if (status) query.set('status', status);
+					if (inFolder) query.set('in_folder', inFolder);
 					if (songId) query.set('song_id', songId);
 					if (artistId) query.set('artist_id', artistId);
 					if (type) query.set('type', type);
@@ -7558,6 +7609,7 @@ export class Kinetune implements INodeType {
 							url: ['url', 'clipImportUrl'],
 							file: ['file_url', 'clipImportFileUrl'],
 							stock: ['stock_id', 'clipImportStockId'],
+							musicVideo: ['video_id', 'clipImportVideoId'],
 						} as Record<string, [string, string]>
 					)[source] ?? ['url', 'clipImportUrl'];
 					const value = String(this.getNodeParameter(name, i, '') || '').trim();

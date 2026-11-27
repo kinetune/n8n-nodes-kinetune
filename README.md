@@ -24,6 +24,10 @@
 Every operation of the [Kinetune](https://kinetune.com/?utm_source=github&utm_medium=readme&utm_campaign=n8n) app is here, and the node works as a tool for n8n's AI Agent too. Paid operations take the exact credits from a quote first, so a workflow never spends more than you saw.
 
 > [!TIP]
+> **New in 6.4.0:** clips cut from a music video's sung shots keep their lip-sync: they play only on their own words in that song's lyric videos (**sync** on each clip). **List Videos** takes **Except Song**.
+>
+> **6.3.0:** **Import Clips** takes **Your Music Video**: one of your delivered music videos, cut at its shots (its end card left out), so its shots can play in your lyric videos. **List Videos** filters by **Status** (Delivered) and marks the music videos already **In Clip Folder**.
+
 > **New in 6.2.0:** a song with no vocals makes a **Visualizer** (its cover and motion, no lyrics). Lyric videos take **Colours** apart from their lyric style. **Show Clips** and **Play the Song** leave the clips or the song out (a silent video). And **Transcribe Song Again** takes **It Has Vocals** when the analysis missed a song's vocals.
 
 ## What you can make
@@ -320,6 +324,16 @@ While `revisable_until` (Get Video) is ahead:
 MIT
 
 ## Changelog
+
+### 6.4.0
+
+- Clips cut from a music video's sung shots answer **sync** (their song and seconds) and play only on their own words in that song's lyric videos, from their own frame, at speed 1; **Create Lyric Video** with your own clips refuses one placed elsewhere. Shots where nobody sings play anywhere.
+- **List Videos** takes **Except Song**: every song's videos but that one's.
+
+### 6.3.0
+
+- **Import Clips** takes **Your Music Video**: a delivered music video of yours, cut at its shots into clips (its end card left out), for your lyric videos.
+- **List Videos** takes **Status** (Delivered, Queued, In Production, Failed or Cancelled) and **In Clip Folder** (each music video says whether it is already cut into that folder).
 
 ### 6.2.0
 
